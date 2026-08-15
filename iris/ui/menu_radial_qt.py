@@ -28,7 +28,7 @@ from PySide6.QtGui import (
     QPainter, QPainterPath, QColor, QConicalGradient, QRadialGradient, QFont,
     QPen, QBrush, QCursor, QGuiApplication, QImage, QPixmap,
 )
-from PySide6.QtWidgets import QWidget, QGraphicsBlurEffect, QGraphicsScene, QGraphicsPixmapItem
+from PySide6.QtWidgets import QApplication, QWidget, QGraphicsBlurEffect, QGraphicsScene, QGraphicsPixmapItem
 
 import iris.core.radial_menu as radial_menu
 import iris.core.app_launcher as app_launcher_mod
@@ -372,6 +372,7 @@ class RadialMenuQt(QWidget):
 
         self._arrastando_indice = None      # índice sendo arrastado no anel de favoritos (Alt+arrastar), ou None
         self._ancora_tela = None            # (cx, cy) fixo - o popup só REDIMENSIONA em volta dele, nunca se move
+        self._suprimir_fechar_por_foco = False  # True durante o hide()+show() de `_forcar_recomposicao_dwm`
         self.tamanho_atual = _tamanho_para_profundidade(0)
 
         # Ícones reais dos jogos da Steam - lidos 1x aqui (não a cada
@@ -796,6 +797,8 @@ class RadialMenuQt(QWidget):
 
     @_com_log_de_erro("focusOutEvent")
     def focusOutEvent(self, event):
+        if self._suprimir_fechar_por_foco:
+            return
         self.close()
 
     def showEvent(self, event):
@@ -1161,21 +1164,32 @@ def mostrar_menu_radial_qt():
     # O DWM do Windows às vezes só compõe parcialmente o 1º frame de uma
     # janela translúcida (WA_TranslucentBackground) quando ela abre
     # SOBREPONDO outra janela do mesmo app (ex.: a tela de Configurações
-    # visível e em foco) - sobra só 1 fatia "fantasma" desenhada até o
-    # DWM recompor de verdade. Um `repaint()` sozinho não bastou (é um
-    # repaint do lado do Qt, não força o DWM a recompor a SUPERFÍCIE da
-    # janela) - um "nudge" de geometria de verdade (redimensionar e voltar)
-    # força o Windows a recriar a superfície da janela do zero.
+    # visível e em foco) - sobra só 1 fatia "fantasma" desenhada até o DWM
+    # recompor de verdade. 2 tentativas anteriores não bastaram: `repaint()`
+    # sozinho é só do lado do Qt; um "nudge" de posição (`move()` 1px e
+    # volta) também não - as 2 chamadas de `move()` rodam síncronas, sem
+    # devolver o controle pro event loop entre elas, então o Windows nunca
+    # chega a REAGIR à posição intermediária antes dela já ter voltado.
+    # `hide()` + `show()` de verdade (com `processEvents()` no meio, pra
+    # garantir que o Windows processe o hide antes do show) derruba e
+    # recria a superfície da janela do zero - bem mais agressivo, mas é o
+    # jeito mais confiável de forçar uma recomposição de verdade.
     def _forcar_recomposicao_dwm():
         if janela is None or not janela.isVisible():
             return
-        # move() (não resize()) de propósito - o popup usa setFixedSize, que
-        # ignoraria um resize "nudge" (largura/altura ficam presas ao
-        # mínimo/máximo fixado).
-        pos = janela.pos()
-        janela.move(pos.x() + 1, pos.y())
-        janela.move(pos)
+        # `hide()` faz o popup perder foco - sem a flag, `focusOutEvent`
+        # chamaria `close()` de verdade (fecha o popup, reseta
+        # `_popup_atual`) ANTES do `show()` seguinte conseguir reabrir -
+        # bug real que apareceu testando isto (o popup "desaparecia
+        # sozinho" no meio do nudge).
+        janela._suprimir_fechar_por_foco = True
+        janela.hide()
+        QApplication.processEvents()
+        janela.show()
+        janela.raise_()
+        janela.activateWindow()
         janela.repaint()
+        janela._suprimir_fechar_por_foco = False
 
     QTimer.singleShot(0, _forcar_recomposicao_dwm)
     QTimer.singleShot(60, _forcar_recomposicao_dwm)
