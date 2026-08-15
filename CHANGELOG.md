@@ -85,8 +85,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   3 categorias aninhadas, 1200px), maior que a ALTURA de monitores comuns
   (1080p/1440p), o que colapsava o clamp de Y num valor fixo.
   `_margem_ancora_que_cabe` agora reserva margem pra profundidade
-  REALMENTE configurada agora (`_profundidade_maxima_configurada` - conta
-  categoria-dentro-de-categoria de verdade na config atual, recalculado
-  toda vez que o popup abre), não o teto técnico - se só existem
-  categorias de 1 nível, a margem cai de 600px pra 344px no eixo Y
-  (1080p), seguindo o cursor de verdade na prática.
+  REALMENTE alcançável a partir dos FAVORITOS ATUAIS
+  (`_profundidade_maxima_configurada`, recalculado toda vez que o popup
+  abre), não o teto técnico. Ajuste (2026-08-15, pedido do usuário): uma
+  categoria que existe mas não está favoritada não é alcançável nesta
+  sessão do popup (a lista de favoritos não muda sem recriar o popup) -
+  contava errado antes ("existe pelo menos 1 categoria no sistema" já
+  reservava margem pra 1 nível, mesmo sem nenhuma favoritada). Sem NENHUMA
+  categoria favoritada, a margem agora é 0 (só o tamanho real da janela,
+  216px em vez de 344px+) - popup abre exatamente onde o cursor está,
+  inclusive numa quina do monitor.

@@ -76,31 +76,39 @@ def _tamanho_para_profundidade(profundidade):
     return _raio_externo_nivel(profundidade) * 2 + MARGEM
 
 
-def _profundidade_maxima_configurada():
-    """Quantos anéis de categoria-dentro-de-categoria existem DE VERDADE na
-    config atual - não o teto técnico (`MAX_NIVEIS_ANINHADOS`, que só limita
-    o quanto dá pra aninhar, não quanto ESTÁ aninhado agora). Reservar
-    margem pro teto técnico inteiro (3 níveis) quando o usuário só tem 1 ou
-    2 categorias configuradas, nenhuma dentro da outra, desperdiça a maior
-    parte da tela numa margem que nunca vai ser usada - por isso a margem
-    (`_margem_ancora_que_cabe`) usa ISSO, recalculado toda vez que o popup
-    abre (a config muda a qualquer momento pela tela de Configurações)."""
+def _profundidade_maxima_configurada(favoritos_atuais):
+    """Quantos anéis de categoria-dentro-de-categoria são ALCANÇÁVEIS de
+    verdade a partir dos favoritos ATUAIS - não o teto técnico
+    (`MAX_NIVEIS_ANINHADOS`, que só limita o quanto DÁ pra aninhar) nem
+    "quantas categorias existem no sistema" (uma categoria que existe mas
+    não está favoritada agora não é alcançável nesta sessão do popup - a
+    lista de favoritos não muda sem recriar o popup). Se não há NENHUMA
+    categoria favoritada, o popup nunca vai abrir um 2º anel - reservar
+    margem pra isso seria espaço 100% desperdiçado. Só categorias PRÓPRIAS
+    do usuário aninham mais categorias dentro - categorias de plugin e os 3
+    itens especiais (Pastas/Recentes/Steam) sempre abrem uma lista achatada,
+    nunca um anel mais fundo."""
     categorias = radial_menu.obter_categorias()
     nomes_categoria = set(categorias.keys())
-    if not nomes_categoria:
-        return 1  # nenhuma categoria ainda - reserva margem pra abrir pelo menos 1
+    categorias_planas = set(CATEGORIAS.keys()) | set(_categorias_plugins_disponiveis().keys())
+    todas_categorias = nomes_categoria | categorias_planas
 
     def _profundidade(nome, visitados):
-        if nome in visitados:
-            return 0  # ciclo (A contém B, B contém A) - não conta de novo
+        if nome in categorias_planas:
+            return 1
+        if nome not in nomes_categoria or nome in visitados:
+            return 0  # não é categoria, ou ciclo (A contém B, B contém A)
         visitados = visitados | {nome}
         itens = categorias.get(nome, {}).get("itens", [])
-        sub_categorias = [it for it in itens if it in nomes_categoria]
+        sub_categorias = [it for it in itens if it in todas_categorias]
         if not sub_categorias:
             return 1
         return 1 + max(_profundidade(sub, visitados) for sub in sub_categorias)
 
-    profundidade_real = max(_profundidade(nome, frozenset()) for nome in nomes_categoria)
+    categorias_favoritadas = [f for f in favoritos_atuais if f in todas_categorias]
+    if not categorias_favoritadas:
+        return 0
+    profundidade_real = max(_profundidade(nome, frozenset()) for nome in categorias_favoritadas)
     return min(profundidade_real, MAX_NIVEIS_ANINHADOS - 1)
 
 
@@ -377,7 +385,7 @@ class RadialMenuQt(QWidget):
             # `_margem_ancora_que_cabe`). E baseada no que está REALMENTE
             # configurado agora, não no teto técnico (ver
             # `_profundidade_maxima_configurada`).
-            profundidade_desejada = _profundidade_maxima_configurada()
+            profundidade_desejada = _profundidade_maxima_configurada(self.favoritos_completos)
             margem_x = _margem_ancora_que_cabe(tela.width(), profundidade_desejada)
             margem_y = _margem_ancora_que_cabe(tela.height(), profundidade_desejada)
             cx = max(tela.left() + margem_x, min(cursor_pos.x(), tela.right() - margem_x))
