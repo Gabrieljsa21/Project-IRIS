@@ -20,6 +20,8 @@ nada de lá)."""
 import importlib
 import os
 import sys
+import traceback
+from datetime import datetime
 
 import keyboard
 from PySide6.QtCore import QObject, Signal, QTimer
@@ -27,6 +29,30 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from iris.ui.qt_widgets import aplicar_estilo_global
+
+# Diagnóstico temporário (2026-08-15) - exceção não tratada dentro de um
+# virtual override do Qt (paintEvent/mousePressEvent/etc, chamado direto do
+# lado C++) pode derrubar o processo INTEIRO sem deixar rastro nenhum no
+# console (é isso que parece estar acontecendo com "só Bloco de Notas
+# aparece, e clicar fora derruba o IRIS todo" - suspeita de exceção real
+# no meio do paintEvent/clique, não um bug de composição do DWM). Loga
+# qualquer exceção não tratada em `iris_erro.log` na raiz do repo ANTES de
+# deixar o comportamento padrão (print no console) acontecer - tirar assim
+# que a causa raiz for encontrada.
+_ARQUIVO_LOG_ERRO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "iris_erro.log")
+
+
+def _logar_excecao_nao_tratada(tipo, valor, tb):
+    try:
+        with open(_ARQUIVO_LOG_ERRO, "a", encoding="utf-8") as f:
+            f.write(f"\n=== {datetime.now().isoformat()} ===\n")
+            traceback.print_exception(tipo, valor, tb, file=f)
+    except Exception:
+        pass
+    sys.__excepthook__(tipo, valor, tb)
+
+
+sys.excepthook = _logar_excecao_nao_tratada
 
 HOTKEY_MENU_RADIAL = "ctrl+alt+space"
 

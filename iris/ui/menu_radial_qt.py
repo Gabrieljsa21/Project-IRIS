@@ -20,6 +20,7 @@ de chamar isto (mesmo padrão documentado em `ARQUITETURA.md`)."""
 import math
 import os
 import threading
+import traceback
 from datetime import datetime
 
 from PySide6.QtCore import Qt, QRectF, QTimer, QVariantAnimation, QEasingCurve
@@ -33,6 +34,40 @@ import iris.core.radial_menu as radial_menu
 import iris.core.app_launcher as app_launcher_mod
 import iris.core.hardware_monitor as hardware_monitor
 from iris.plugins import registry as plugin_registry
+
+# Diagnóstico temporário (2026-08-15) - ver `iris/main.py` (mesmo padrão,
+# `sys.excepthook`) pro contexto completo: uma exceção real dentro de um
+# virtual override do Qt (paintEvent, mousePressEvent...) pode derrubar o
+# processo inteiro sem deixar rastro no console. Tirar assim que a causa
+# raiz do bug "só Bloco de Notas aparece / clicar fora derruba o IRIS" for
+# encontrada.
+_ARQUIVO_LOG_ERRO_POPUP = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "iris_erro.log"
+)
+
+
+def _logar_erro_popup(contexto):
+    try:
+        with open(_ARQUIVO_LOG_ERRO_POPUP, "a", encoding="utf-8") as f:
+            f.write(f"\n=== {datetime.now().isoformat()} - {contexto} ===\n")
+            traceback.print_exc(file=f)
+    except Exception:
+        pass
+
+
+def _com_log_de_erro(contexto):
+    """Decorador de diagnóstico temporário (ver comentário acima) - loga e
+    ENGOLE a exceção (não deixa propagar pro Qt/C++) pros handlers de
+    mouse/foco/fechamento, onde é seguro só desistir do evento atual."""
+    def decorador(func):
+        def wrapper(self, *args, **kwargs):
+            try:
+                return func(self, *args, **kwargs)
+            except Exception:
+                _logar_erro_popup(contexto)
+        return wrapper
+    return decorador
+
 
 # ---------------------------------------------------------------------------
 # Geometria - ângulo 0° = 3h (leste), crescendo ANTI-horário (Qt); item 0 no
@@ -626,6 +661,7 @@ class RadialMenuQt(QWidget):
 
         self._atualizar_hover(pos)
 
+    @_com_log_de_erro("mousePressEvent")
     def mousePressEvent(self, event):
         cx = cy = self.tamanho_atual / 2
         pos = event.position()
@@ -715,6 +751,7 @@ class RadialMenuQt(QWidget):
         if event.button() == Qt.LeftButton:
             self.close()
 
+    @_com_log_de_erro("mouseReleaseEvent")
     def mouseReleaseEvent(self, event):
         if self._arrastando_indice is not None:
             self._arrastando_indice = None
@@ -757,6 +794,7 @@ class RadialMenuQt(QWidget):
         if event.key() == Qt.Key_Alt:
             self._atualizar_icone_cursor(False)
 
+    @_com_log_de_erro("focusOutEvent")
     def focusOutEvent(self, event):
         self.close()
 
@@ -775,6 +813,7 @@ class RadialMenuQt(QWidget):
         anim.start()
         self._anim_abertura = anim
 
+    @_com_log_de_erro("closeEvent")
     def closeEvent(self, event):
         global _popup_atual
         if _popup_atual is self:
@@ -991,6 +1030,20 @@ class RadialMenuQt(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
+        try:
+            self._paintEvent_real(painter)
+        except Exception:
+            # Diagnóstico temporário (2026-08-15, ver iris/main.py) - uma
+            # exceção aqui dentro, sem isso, deixaria o `painter` sem
+            # `.end()` (loop abaixo já não chegaria lá) - PySide6 costuma
+            # travar/derrubar o processo inteiro no próximo paintEvent
+            # depois disso, o que bate com "clicar fora derruba o IRIS
+            # todo". Loga ANTES de garantir o end() no finally.
+            _logar_erro_popup("paintEvent")
+        finally:
+            painter.end()
+
+    def _paintEvent_real(self, painter):
         painter.setRenderHint(QPainter.Antialiasing)
         cx = cy = self.tamanho_atual / 2
 
@@ -1076,8 +1129,6 @@ class RadialMenuQt(QWidget):
             painter.setPen(QColor("#f1efe9"))
             painter.setFont(QFont("Segoe UI", 11, QFont.Bold))
             painter.drawText(QRectF(0, 6, self.tamanho_atual, 24), Qt.AlignCenter, f"🔎 {self.filtro_busca}")
-
-        painter.end()
 
 
 _popup_atual = None
