@@ -488,6 +488,23 @@ def adicionar_pasta(nome_exibido, caminho):
     _salvar(dados)
 
 
+def importar_pastas(pastas_novas):
+    """Mescla pastas vindas de outro `menu_radial_config.json` compatível
+    (mesmo schema - ex.: o Menu Radial da GAIA) - sobrescreve por nome,
+    preserva as pastas já existentes que não estão em `pastas_novas`."""
+    dados = _carregar()
+    pastas = dados.setdefault("pastas", {})
+    importadas = 0
+    for nome, info in (pastas_novas or {}).items():
+        caminho = info.get("caminho") if isinstance(info, dict) else None
+        if not caminho:
+            continue
+        pastas[nome] = {"caminho": caminho, "ativa": bool(info.get("ativa", True))}
+        importadas += 1
+    _salvar(dados)
+    return importadas
+
+
 def renomear_pasta(nome_antigo, nome_novo, caminho_novo):
     """Edita uma pasta já cadastrada - troca nome e/ou caminho preservando o
     estado ativa/desativada."""

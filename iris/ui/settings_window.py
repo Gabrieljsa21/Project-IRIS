@@ -6,6 +6,7 @@ menu_radial_config.json`). Não tenta reproduzir cada detalhe da tela
 equivalente da GAIA (`ui/qt_modais/menu_radial.py`, não portada - fora do
 escopo desta extração) - só o necessário pra configurar o launcher sozinho:
 favoritos, categorias, pastas, Steam e as poucas preferências do core."""
+import json
 import os
 
 from PySide6.QtCore import Qt
@@ -273,8 +274,42 @@ class JanelaConfiguracoes(ModalBase):
         linha_add.addWidget(botao_add)
         layout.addLayout(linha_add)
 
+        botao_importar = criar_botao("Importar de outro menu_radial_config.json...")
+        botao_importar.clicked.connect(self._importar_pastas_de_arquivo)
+        layout.addWidget(botao_importar)
+        layout.addWidget(criar_descricao("Lê a chave \"pastas\" de um config compatível (ex.: o do Menu Radial da GAIA) e importa as que existirem neste PC."))
+
         self._atualizar_lista_pastas()
         return widget
+
+    def _importar_pastas_de_arquivo(self):
+        caminho_arquivo, _ = QFileDialog.getOpenFileName(
+            self, "Importar pastas de um menu_radial_config.json", "", "JSON (*.json)"
+        )
+        if not caminho_arquivo:
+            return
+        try:
+            with open(caminho_arquivo, "r", encoding="utf-8") as f:
+                dados = json.load(f)
+        except Exception as e:
+            avisar(self, "Erro ao ler arquivo", str(e))
+            return
+        pastas = dados.get("pastas", {})
+        if not isinstance(pastas, dict) or not pastas:
+            avisar(self, "Nada pra importar", "Esse arquivo não tem nenhuma pasta configurada (chave \"pastas\").")
+            return
+        validas = {nome: info for nome, info in pastas.items()
+                   if isinstance(info, dict) and os.path.isdir(info.get("caminho", ""))}
+        ignoradas = len(pastas) - len(validas)
+        if not validas:
+            avisar(self, "Nenhuma pasta válida", "Nenhum dos caminhos encontrados existe neste PC.")
+            return
+        total = radial_menu.importar_pastas(validas)
+        self._atualizar_lista_pastas()
+        mensagem = f"{total} pasta(s) importada(s)."
+        if ignoradas:
+            mensagem += f" {ignoradas} ignorada(s) por não existir(em) neste PC."
+        avisar(self, "Importação concluída", mensagem)
 
     def _escolher_pasta(self):
         caminho = QFileDialog.getExistingDirectory(self, "Escolher pasta")
