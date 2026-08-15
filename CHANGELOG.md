@@ -62,3 +62,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   janela do processo. Trocado por `.show()` não-modal, com a referência da
   janela guardada em `IrisApp` (senão o GC do Python derrubava a janela
   assim que a função retornava).
+- Anel do popup renderizava só 1 fatia (a favorita sob o cursor) em vez das
+  4, sempre que o popup abria SOBREPONDO outra janela do próprio app (ex.:
+  a tela de Configurações visível e em foco) - o DWM do Windows só compõe
+  parcialmente o 1º frame de uma janela translúcida (`WA_TranslucentBackground`)
+  nesse cenário. Corrigido forçando `raise_()` + um `repaint()` de verdade
+  logo após o `show()` (`mostrar_menu_radial_qt`). Reproduzido e confirmado
+  corrigido com um teste real (2 janelas sobrepostas de propósito).
