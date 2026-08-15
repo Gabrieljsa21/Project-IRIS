@@ -39,8 +39,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   (`radial_menu.importar_pastas`) - lê a chave `"pastas"` de um config
   compatível (ex.: o do Menu Radial da GAIA, mesmo schema) e importa só as
   que existem neste PC, ignorando o resto.
-
-### Removido
+- Aba Categorias agora permite aninhar pastas E outras categorias como
+  itens (igual a GAIA - "2026-08-07, pedido do usuário: pode permitir mais
+  de 2 anéis") - a extração original só listava apps como itens
+  selecionáveis, uma lacuna do porte (o motor do popup já suportava
+  aninhamento desde sempre, só a tela de Configurações não expunha a
+  opção). Categoria sendo editada fica de fora da própria lista (evita
+  auto-referência direta); ciclos indiretos continuam protegidos em
+  runtime pelo popup (`_cadeia_categorias_atual`).
 
 - Toggle "Automação de apps" (kill-switch) - na GAIA esse flag existe pra
   impedir a LLM/agente de abrir/fechar programas sozinha; reaproveitá-lo
@@ -74,9 +80,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   força o Windows a recompor a SUPERFÍCIE da janela) - precisa validação no
   uso real antes de considerar resolvido.
 - Eixo Y do popup ignorava a posição real do cursor, sempre abrindo perto do
-  centro vertical do monitor (eixo X funcionava normal) - `TAMANHO_MAXIMO`
-  (1200px, reservado pra nunca precisar "pular" ao abrir uma categoria bem
-  aninhada) é maior que a ALTURA de monitores comuns (1080p/1440p), o que
-  colapsava o clamp de Y num valor fixo. `_margem_ancora_que_cabe` agora
-  calcula a margem por EIXO, tentando a profundidade mais funda que ainda
-  cabe em metade da tela antes de usar a margem máxima.
+  centro vertical do monitor (eixo X funcionava normal) - a margem antiga
+  reservava espaço pro teto TÉCNICO de aninhamento (`MAX_NIVEIS_ANINHADOS`,
+  3 categorias aninhadas, 1200px), maior que a ALTURA de monitores comuns
+  (1080p/1440p), o que colapsava o clamp de Y num valor fixo.
+  `_margem_ancora_que_cabe` agora reserva margem pra profundidade
+  REALMENTE configurada agora (`_profundidade_maxima_configurada` - conta
+  categoria-dentro-de-categoria de verdade na config atual, recalculado
+  toda vez que o popup abre), não o teto técnico - se só existem
+  categorias de 1 nível, a margem cai de 600px pra 344px no eixo Y
+  (1080p), seguindo o cursor de verdade na prática.
