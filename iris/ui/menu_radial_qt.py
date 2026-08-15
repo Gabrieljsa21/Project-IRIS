@@ -95,7 +95,7 @@ def _cor_por_angulo(angulo_absoluto):
 
 
 COR_NEUTRA = QColor("#3f4759")
-COR_FAVORITO = QColor("#7dd3fc")
+COR_FAVORITO = QColor("#facc15")
 
 # Abreviações de dia da semana/mês em PT-BR pro texto central do popup -
 # `strftime` com "%a"/"%b" usa o locale padrão do processo, que é o C/inglês
@@ -755,9 +755,6 @@ class RadialMenuQt(QWidget):
                 print(f" [SISTEMA] Menu Radial: pasta '{texto}' não encontrada/configurada (Configurações > Pastas).")
             return
 
-        if not radial_menu.obter_automacao_apps_habilitada():
-            print(f" [SISTEMA] Menu Radial: automação de apps está desligada em Configurações - '{rotulo}' não foi aberto.")
-            return
         launcher = app_launcher_mod.AppLauncher()
         app_name, target = launcher.find_app(rotulo)
         if not app_name:
@@ -970,7 +967,7 @@ class RadialMenuQt(QWidget):
 
         cpu = self.metricas.get("cpu_percent")
         if cpu is not None:
-            pen_anel = QPen(QColor("#7dd3fc"), 5)
+            pen_anel = QPen(QColor("#a855f7"), 5)
             pen_anel.setCapStyle(Qt.RoundCap)
             painter.setPen(pen_anel)
             painter.setBrush(Qt.NoBrush)
