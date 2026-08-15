@@ -1,0 +1,59 @@
+{
+  "perfil_atual": "Geral",
+  "perfis": {
+    "Geral": {
+      "favoritos": [
+        "bloco de notas",
+        "calculadora",
+        "youtube",
+        "navegador",
+        "📂 Pastas",
+        "🕐 Recentes",
+        "🎮 Steam",
+        "Trabalho"
+      ],
+      "categorias": {
+        "Trabalho": {
+          "icone": "📁",
+          "itens": [
+            "bloco de notas",
+            "calculadora",
+            "navegador"
+          ],
+          "ativa": true,
+          "itens_desativados": []
+        }
+      },
+      "uso": {
+        "navegador": 12,
+        "📂 Pastas": 5
+      },
+      "steam_ordem": [
+        "exemplo de jogo 1",
+        "exemplo de jogo 2"
+      ],
+      "steam_desativados": [],
+      "favoritos_desativados": []
+    }
+  },
+  "pastas": {
+    "Downloads": {
+      "caminho": "C:/Users/SeuUsuario/Downloads",
+      "ativa": true
+    },
+    "Projetos": {
+      "caminho": "C:/Workspace",
+      "ativa": true
+    }
+  },
+  "recentes": [
+    "navegador",
+    "bloco de notas"
+  ],
+  "ranking_automatico_ativo": false,
+  "automacao_apps_habilitada": true,
+  "apelidos": {},
+  "limite_por_camada_favoritos": 8,
+  "limite_por_camada_subitens": 8,
+  "icones_customizados": {}
+}

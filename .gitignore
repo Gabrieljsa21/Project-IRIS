@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# Dados gerados em runtime (config real do usuário - nunca commitado)
+data/*.json
+!data/menu_radial_config.example.json
+
+# Editores / SO
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

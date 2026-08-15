@@ -1,0 +1,21 @@
+[project]
+name = "iris"
+version = "0.1.0"
+description = "Launcher radial genérico pra Windows (apps, pastas, sites, atalhos, jogos Steam) - popup acionado por hotkey global, com sistema de plugins opcional."
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.6",
+    "keyboard>=0.13",
+    "psutil>=5.9",
+    "pywin32>=306; sys_platform == 'win32'",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["iris*"]
+
+[project.scripts]
+iris = "iris.main:main"
