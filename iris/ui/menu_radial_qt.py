@@ -1047,5 +1047,12 @@ def mostrar_menu_radial_qt():
     janela = RadialMenuQt()
     _popup_atual = janela
     janela.show()
+    janela.raise_()
     janela.activateWindow()
     janela.setFocus()
+    # O DWM do Windows às vezes só compõe parcialmente o 1º frame de uma
+    # janela translúcida (WA_TranslucentBackground) quando ela abre
+    # SOBREPONDO outra janela do mesmo app (ex.: a tela de Configurações) -
+    # sobra só 1 fatia "fantasma" desenhada até o próximo repaint de
+    # verdade. Forçar 1 repaint logo depois do show resolve.
+    QTimer.singleShot(30, janela.repaint)
