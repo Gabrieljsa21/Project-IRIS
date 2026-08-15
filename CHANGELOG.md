@@ -72,13 +72,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   sempre que o popup abre SOBREPONDO outra janela do próprio app (ex.: a
   tela de Configurações visível e em foco) - suspeita é o DWM do Windows só
   compondo parcialmente o 1º frame de uma janela translúcida
-  (`WA_TranslucentBackground`) nesse cenário. **Ainda não confirmado como
-  resolvido** - a 1ª tentativa (`raise_()` + `repaint()`) não bastou (usuário
-  confirmou o mesmo erro após reiniciar); 2ª tentativa em
-  `mostrar_menu_radial_qt` força um "nudge" de geometria de verdade
-  (`move()` 1px e volta, já que `repaint()` sozinho é só do lado do Qt, não
-  força o Windows a recompor a SUPERFÍCIE da janela) - precisa validação no
-  uso real antes de considerar resolvido.
+  (`WA_TranslucentBackground`) nesse cenário; instrumentação de diagnóstico
+  (`iris_erro.log`, ver mais abaixo) confirmou que NÃO é uma exceção Python -
+  reforça a suspeita de ser mesmo composição do DWM. **Ainda não confirmado
+  como resolvido** - 1ª tentativa (`raise_()` + `repaint()`) e 2ª tentativa
+  (`move()` 1px e volta) não bastaram (usuário confirmou o mesmo erro depois
+  de cada uma); 3ª tentativa em `mostrar_menu_radial_qt` faz um `hide()` +
+  `show()` de verdade (com `QApplication.processEvents()` no meio) - bem
+  mais agressivo que só mover, derruba e recria a superfície da janela do
+  zero. Precisou de uma flag nova (`_suprimir_fechar_por_foco`) porque
+  `hide()` sozinho já dispara `focusOutEvent` → `close()` de verdade
+  (achado testando esta tentativa - o popup "sumia sozinho" no meio do
+  nudge). Ainda precisa de validação no uso real.
 - Eixo Y do popup ignorava a posição real do cursor, sempre abrindo perto do
   centro vertical do monitor (eixo X funcionava normal) - a margem antiga
   reservava espaço pro teto TÉCNICO de aninhamento (`MAX_NIVEIS_ANINHADOS`,
