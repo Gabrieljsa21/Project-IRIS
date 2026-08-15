@@ -1,0 +1,33 @@
+# Changelog
+
+Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
+
+## [Unreleased]
+
+### Adicionado
+
+- Extração inicial do Menu Radial que vivia embutido na GAIA (`Project
+  G.A.I.A/assistant`) pra um projeto independente, `Project-IRIS`. Ver
+  `ARQUITETURA.md` pro histórico completo da extração.
+- Core (`iris/`): popup radial (`ui/menu_radial_qt.py`), persistência
+  (`core/radial_menu.py`), app launcher genérico (`core/app_launcher.py` +
+  `core/apps_scanner.py`), monitor de hardware (`core/hardware_monitor.py`),
+  sistema de plugins (`plugins/base.py` + `plugins/registry.py`) - zero
+  dependência de GAIA.
+- Entry point standalone (`iris/main.py`) - própria `QApplication`, hotkey
+  global `Ctrl+Alt+Espaço`, ícone na bandeja do sistema.
+- Tela de Configurações própria (`iris/ui/settings_window.py`) - favoritos,
+  categorias, pastas, jogos da Steam e preferências do core, criada do zero
+  (a GAIA nunca teve uma versão standalone dessa tela).
+- Widgets Qt vendorizados de `Project G.A.I.A/assistant/ui/qt_widgets.py`
+  (`iris/ui/qt_widgets.py`) - só o subconjunto usado pela tela de
+  Configurações.
+- Plugin opcional `plugins/iris_plugin_gaia/` - implementa os 4 pontos de
+  acoplamento identificados na extração como `ActionProvider`. Só **Avatar
+  (Overlay)** está funcional (reaproveita a API HTTP existente da GAIA,
+  porta 8765); **Funções da Gaia**, **Animações do VTube Studio** e **Anime
+  Tracker** são stubs documentados em `plugins/iris_plugin_gaia/TODO.md`,
+  pendentes de endpoint/IPC do lado da GAIA.
+- `data/menu_radial_config.example.json` - schema de referência (sem dado
+  pessoal real).
+- `README.md`, `ARQUITETURA.md`, `TODO.md`, `pyproject.toml`, `.gitignore`.
