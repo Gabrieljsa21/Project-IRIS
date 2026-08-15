@@ -78,6 +78,24 @@ def _tamanho_para_profundidade(profundidade):
 
 TAMANHO_MAXIMO = _tamanho_para_profundidade(MAX_NIVEIS_ANINHADOS - 1)
 
+
+def _margem_ancora_que_cabe(dimensao_tela):
+    """Quanto de margem reservar num eixo pro popup nunca precisar "pular"
+    de lugar ao crescer - idealmente o tamanho MÁXIMO possível (todos os
+    níveis aninhados abertos), mas isso (1200px) é maior que a ALTURA de
+    monitores comuns (1080p, 1440p), o que travava o eixo Y sempre no
+    mesmo valor (bug real - clamp com limite inferior > superior sempre
+    vence). Tenta a profundidade mais funda que ainda cabe em metade da
+    tela; se nem a de profundidade 0 (favoritos, sempre visível) couber,
+    usa ela mesmo assim - nesse caso extremo aceita que anéis bem fundos
+    percam um pouco de tela, em troca do popup pelo menos abrir onde o
+    cursor está."""
+    for profundidade in range(MAX_NIVEIS_ANINHADOS - 1, -1, -1):
+        margem = _tamanho_para_profundidade(profundidade) // 2
+        if margem <= dimensao_tela // 2:
+            return margem
+    return _tamanho_para_profundidade(0) // 2
+
 # A paleta de cor é uma RODA DE COR CONTÍNUA: a cor de uma fatia em destaque
 # vem do ÂNGULO ABSOLUTO dela na tela (matiz = função do ângulo), não de um
 # índice fixo - a sequência sempre segue a ordem do arco-íris ao redor do
@@ -330,9 +348,13 @@ class RadialMenuQt(QWidget):
             # mouse estava de verdade em setups com mais de 1 monitor).
             tela_atual = QGuiApplication.screenAt(cursor_pos) or QGuiApplication.primaryScreen()
             tela = tela_atual.geometry()
-            metade_maxima = TAMANHO_MAXIMO // 2
-            cx = max(tela.left() + metade_maxima, min(cursor_pos.x(), tela.right() - metade_maxima))
-            cy = max(tela.top() + metade_maxima, min(cursor_pos.y(), tela.bottom() - metade_maxima))
+            # Margem por EIXO, não uma única pros dois - a altura de um monitor
+            # comum não comporta a mesma margem que a largura (ver
+            # `_margem_ancora_que_cabe`).
+            margem_x = _margem_ancora_que_cabe(tela.width())
+            margem_y = _margem_ancora_que_cabe(tela.height())
+            cx = max(tela.left() + margem_x, min(cursor_pos.x(), tela.right() - margem_x))
+            cy = max(tela.top() + margem_y, min(cursor_pos.y(), tela.bottom() - margem_y))
             self._ancora_tela = (cx, cy)
 
         tamanho = _tamanho_para_profundidade(len(self.pilha))
@@ -1052,7 +1074,22 @@ def mostrar_menu_radial_qt():
     janela.setFocus()
     # O DWM do Windows às vezes só compõe parcialmente o 1º frame de uma
     # janela translúcida (WA_TranslucentBackground) quando ela abre
-    # SOBREPONDO outra janela do mesmo app (ex.: a tela de Configurações) -
-    # sobra só 1 fatia "fantasma" desenhada até o próximo repaint de
-    # verdade. Forçar 1 repaint logo depois do show resolve.
-    QTimer.singleShot(30, janela.repaint)
+    # SOBREPONDO outra janela do mesmo app (ex.: a tela de Configurações
+    # visível e em foco) - sobra só 1 fatia "fantasma" desenhada até o
+    # DWM recompor de verdade. Um `repaint()` sozinho não bastou (é um
+    # repaint do lado do Qt, não força o DWM a recompor a SUPERFÍCIE da
+    # janela) - um "nudge" de geometria de verdade (redimensionar e voltar)
+    # força o Windows a recriar a superfície da janela do zero.
+    def _forcar_recomposicao_dwm():
+        if janela is None or not janela.isVisible():
+            return
+        # move() (não resize()) de propósito - o popup usa setFixedSize, que
+        # ignoraria um resize "nudge" (largura/altura ficam presas ao
+        # mínimo/máximo fixado).
+        pos = janela.pos()
+        janela.move(pos.x() + 1, pos.y())
+        janela.move(pos)
+        janela.repaint()
+
+    QTimer.singleShot(0, _forcar_recomposicao_dwm)
+    QTimer.singleShot(60, _forcar_recomposicao_dwm)

@@ -62,10 +62,21 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   janela do processo. Trocado por `.show()` não-modal, com a referência da
   janela guardada em `IrisApp` (senão o GC do Python derrubava a janela
   assim que a função retornava).
-- Anel do popup renderizava só 1 fatia (a favorita sob o cursor) em vez das
-  4, sempre que o popup abria SOBREPONDO outra janela do próprio app (ex.:
-  a tela de Configurações visível e em foco) - o DWM do Windows só compõe
-  parcialmente o 1º frame de uma janela translúcida (`WA_TranslucentBackground`)
-  nesse cenário. Corrigido forçando `raise_()` + um `repaint()` de verdade
-  logo após o `show()` (`mostrar_menu_radial_qt`). Reproduzido e confirmado
-  corrigido com um teste real (2 janelas sobrepostas de propósito).
+- Anel do popup renderiza só 1 fatia (a favorita sob o cursor) em vez das 4,
+  sempre que o popup abre SOBREPONDO outra janela do próprio app (ex.: a
+  tela de Configurações visível e em foco) - suspeita é o DWM do Windows só
+  compondo parcialmente o 1º frame de uma janela translúcida
+  (`WA_TranslucentBackground`) nesse cenário. **Ainda não confirmado como
+  resolvido** - a 1ª tentativa (`raise_()` + `repaint()`) não bastou (usuário
+  confirmou o mesmo erro após reiniciar); 2ª tentativa em
+  `mostrar_menu_radial_qt` força um "nudge" de geometria de verdade
+  (`move()` 1px e volta, já que `repaint()` sozinho é só do lado do Qt, não
+  força o Windows a recompor a SUPERFÍCIE da janela) - precisa validação no
+  uso real antes de considerar resolvido.
+- Eixo Y do popup ignorava a posição real do cursor, sempre abrindo perto do
+  centro vertical do monitor (eixo X funcionava normal) - `TAMANHO_MAXIMO`
+  (1200px, reservado pra nunca precisar "pular" ao abrir uma categoria bem
+  aninhada) é maior que a ALTURA de monitores comuns (1080p/1440p), o que
+  colapsava o clamp de Y num valor fixo. `_margem_ancora_que_cabe` agora
+  calcula a margem por EIXO, tentando a profundidade mais funda que ainda
+  cabe em metade da tela antes de usar a margem máxima.
