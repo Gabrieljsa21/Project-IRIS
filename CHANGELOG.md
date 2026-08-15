@@ -31,3 +31,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 - `data/menu_radial_config.example.json` - schema de referência (sem dado
   pessoal real).
 - `README.md`, `ARQUITETURA.md`, `TODO.md`, `pyproject.toml`, `.gitignore`.
+- `iniciar_iris.bat` + `iniciar_iris_oculto.vbs` + `criar_atalho_desktop.vbs` -
+  mesmo padrão de inicialização sem console do `Project-ARGUS`: o `.bat` sobe
+  o IRIS via `pythonw` (sem janela pro app), o `.vbs` esconde o console do
+  próprio `.bat`, e o atalho da Área de Trabalho aponta pro `.vbs`.
