@@ -42,5 +42,6 @@
 
 - Config split (core vs. plugin) - ver `ARQUITETURA.md`, seção "Config
   split".
-- Automação de apps (kill-switch) - migrada do `brain_store` da GAIA pra
-  config própria do core (`radial_menu.obter_automacao_apps_habilitada`).
+- Automação de apps (kill-switch) - removida por completo (2026-08-15, ver
+  `ARQUITETURA.md`, ponto #4) - era o kill-switch de ação autônoma da IA da
+  GAIA, sem utilidade real pro clique manual do launcher.

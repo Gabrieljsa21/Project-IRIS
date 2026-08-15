@@ -22,8 +22,8 @@ BG_COLOR = "#0d0d0f"
 SURFACE_COLOR = "#1a1a1d"
 HIGHLIGHT_COLOR = "#28282c"
 BORDA_SUTIL = "#2f2f34"
-IRIS_ACCENT = "#7dd3fc"
-IRIS_ACCENT_HOVER = "#a5e4fd"
+GAIA_GOLD = "#d4af6a"
+GAIA_GOLD_HOVER = "#e3c284"
 TEXT_COLOR = "#f1efe9"
 TEXT_DIM = "#8f8d8a"
 FONTE_BASE = "Segoe UI"
@@ -53,7 +53,7 @@ class Switch(QCheckBox):
     """Toggle animado (trilho + bolinha deslizando) - texto ao lado troca
     sozinho entre `texto_on`/`texto_off` conforme o estado."""
 
-    def __init__(self, texto_on, texto_off, cor=IRIS_ACCENT, marcado=False,
+    def __init__(self, texto_on, texto_off, cor=GAIA_GOLD, marcado=False,
                  cor_bolinha_ligado=COR_BOLINHA_SWITCH_LIGADO,
                  cor_bolinha_desligado=COR_BOLINHA_SWITCH_DESLIGADO,
                  parent=None):
@@ -128,7 +128,7 @@ class CheckboxQuadrado(QCheckBox):
 
     _TAMANHO_CAIXA = 17
 
-    def __init__(self, texto="", marcado=False, cor=IRIS_ACCENT, parent=None):
+    def __init__(self, texto="", marcado=False, cor=GAIA_GOLD, parent=None):
         super().__init__(parent)
         self.cor = QColor(cor)
         self.setCursor(Qt.PointingHandCursor)
@@ -180,7 +180,7 @@ class LinhaSelecionavel(QCheckBox):
     """Checkbox "linha inteira destacada" (sem caixinha) - bom pra listas
     longas onde o olho escaneia o destaque, não um ícone pequeno."""
 
-    def __init__(self, texto="", marcado=False, cor=IRIS_ACCENT, parent=None):
+    def __init__(self, texto="", marcado=False, cor=GAIA_GOLD, parent=None):
         super().__init__(parent)
         self.cor = QColor(cor)
         self.setCursor(Qt.PointingHandCursor)
@@ -223,7 +223,7 @@ class DelegadoItemDropdown(QStyledItemDelegate):
     """Pinta cada linha do popup do dropdown via `QPainter` direto, em vez de
     depender de QSS `::item:selected`/`::item:hover`."""
 
-    def __init__(self, parent=None, cor_selecionado=IRIS_ACCENT, cor_texto_selecionado=BG_COLOR,
+    def __init__(self, parent=None, cor_selecionado=GAIA_GOLD, cor_texto_selecionado=BG_COLOR,
                  cor_hover=COR_HOVER_ITEM, cor_normal=HIGHLIGHT_COLOR, cor_texto_normal=TEXT_COLOR):
         super().__init__(parent)
         self.cor_selecionado = QColor(cor_selecionado)
@@ -262,7 +262,7 @@ class ComboBoxSemScrollAcidental(QComboBox):
     está FECHADO - rolar a página com o mouse em cima de um dropdown fechado
     não deve trocar a opção selecionada sem querer."""
 
-    def __init__(self, cor_seta=IRIS_ACCENT, parent=None):
+    def __init__(self, cor_seta=GAIA_GOLD, parent=None):
         super().__init__(parent)
         self.cor_seta = QColor(cor_seta)
 
@@ -377,8 +377,8 @@ class SpinboxCapsula(QWidget):
                 padding: 0px;
             }}
             QPushButton:hover {{
-                background-color: {cor_com_alpha(IRIS_ACCENT, 0.18)};
-                color: {IRIS_ACCENT};
+                background-color: {cor_com_alpha(GAIA_GOLD, 0.18)};
+                color: {GAIA_GOLD};
             }}
         """)
         botao.clicked.connect(ao_clicar)
@@ -562,7 +562,7 @@ def executar_em_thread(trabalho, ao_terminar, parent=None):
     return sinalizador
 
 
-def criar_link(texto, url, cor=IRIS_ACCENT):
+def criar_link(texto, url, cor=GAIA_GOLD):
     lbl = QLabel(f'<a href="{url}" style="color:{cor};">{texto}</a>')
     lbl.setOpenExternalLinks(True)
     lbl.setFont(QFont(FONTE_BASE, 10))
@@ -574,7 +574,7 @@ def criar_spinbox(minimo, maximo, valor_atual, largura=60, passo=1):
     return SpinboxCapsula(minimo, maximo, valor_atual, largura=largura, passo=passo)
 
 
-def criar_botao(texto, cor_texto=IRIS_ACCENT, preenchido=False, icone_arquivo=None):
+def criar_botao(texto, cor_texto=GAIA_GOLD, preenchido=False, icone_arquivo=None):
     """`preenchido=True` pro botão de ação principal (fundo sólido);
     `False` pro estilo "outline" dos botões secundários."""
     botao = QPushButton(texto)
@@ -587,13 +587,13 @@ def criar_botao(texto, cor_texto=IRIS_ACCENT, preenchido=False, icone_arquivo=No
     if preenchido:
         botao.setStyleSheet(f"""
             QPushButton {{
-                background-color: {IRIS_ACCENT};
+                background-color: {GAIA_GOLD};
                 color: {BG_COLOR};
                 border: none;
                 border-radius: 8px;
                 padding: 0 16px;
             }}
-            QPushButton:hover {{ background-color: {IRIS_ACCENT_HOVER}; }}
+            QPushButton:hover {{ background-color: {GAIA_GOLD_HOVER}; }}
         """)
     else:
         botao.setStyleSheet(f"""
@@ -675,14 +675,14 @@ def criar_scroll_area():
     return scroll, lay
 
 
-def criar_titulo_secao(texto, cor=IRIS_ACCENT, tamanho=15):
+def criar_titulo_secao(texto, cor=GAIA_GOLD, tamanho=15):
     lbl = QLabel(texto)
     lbl.setFont(QFont(FONTE_BASE, tamanho, QFont.Bold))
     lbl.setStyleSheet(f"color: {cor}; background: transparent; border: none;")
     return lbl
 
 
-def criar_checkbox(texto, marcado=False, cor=IRIS_ACCENT):
+def criar_checkbox(texto, marcado=False, cor=GAIA_GOLD):
     caixa = QCheckBox(texto)
     caixa.setChecked(marcado)
     caixa.setCursor(Qt.PointingHandCursor)
@@ -717,7 +717,7 @@ def criar_tabwidget():
             font-weight: bold;
         }}
         QTabBar::tab:selected {{
-            background-color: {IRIS_ACCENT};
+            background-color: {GAIA_GOLD};
             color: {BG_COLOR};
         }}
         QTabBar::tab:hover:!selected {{
@@ -735,7 +735,7 @@ def criar_tabwidget():
     return abas
 
 
-def criar_dropdown(valores, valor_atual=None, largura=None, cor_selecionado=IRIS_ACCENT):
+def criar_dropdown(valores, valor_atual=None, largura=None, cor_selecionado=GAIA_GOLD):
     combo = ComboBoxSemScrollAcidental(cor_seta=cor_selecionado)
     combo.setItemDelegate(DelegadoItemDropdown(combo, cor_selecionado=cor_selecionado))
     combo.addItems(valores)
@@ -783,12 +783,12 @@ def aplicar_estilo_global(app):
             margin: 0px;
         }}
         QScrollBar::handle:vertical {{
-            background: {IRIS_ACCENT};
+            background: {GAIA_GOLD};
             border-radius: 5px;
             min-height: 24px;
         }}
         QScrollBar::handle:vertical:hover {{
-            background: {IRIS_ACCENT_HOVER};
+            background: {GAIA_GOLD_HOVER};
         }}
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
             height: 0px;
@@ -804,12 +804,12 @@ def aplicar_estilo_global(app):
             margin: 0px;
         }}
         QScrollBar::handle:horizontal {{
-            background: {IRIS_ACCENT};
+            background: {GAIA_GOLD};
             border-radius: 5px;
             min-width: 24px;
         }}
         QScrollBar::handle:horizontal:hover {{
-            background: {IRIS_ACCENT_HOVER};
+            background: {GAIA_GOLD_HOVER};
         }}
         QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
             width: 0px;

@@ -35,3 +35,19 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   mesmo padrão de inicialização sem console do `Project-ARGUS`: o `.bat` sobe
   o IRIS via `pythonw` (sem janela pro app), o `.vbs` esconde o console do
   próprio `.bat`, e o atalho da Área de Trabalho aponta pro `.vbs`.
+
+### Removido
+
+- Toggle "Automação de apps" (kill-switch) - na GAIA esse flag existe pra
+  impedir a LLM/agente de abrir/fechar programas sozinha; reaproveitá-lo
+  pro clique manual num favorito do IRIS não fazia sentido (o clique já é
+  intencional). Removido de `core/radial_menu.py`, `ui/menu_radial_qt.py` e
+  da tela de Configurações.
+
+### Corrigido
+
+- Paleta de cores do porte inicial estava com um acento ciano (`#7dd3fc`)
+  que não existe na identidade visual da GAIA - revertido pro acento
+  dourado (`GAIA_GOLD #d4af6a`, widgets/botões) e pras cores originais do
+  popup (`#facc15` no indicador de favorito, `#a855f7` no anel do monitor
+  de hardware), igual ao Menu Radial original.
