@@ -35,6 +35,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   mesmo padrão de inicialização sem console do `Project-ARGUS`: o `.bat` sobe
   o IRIS via `pythonw` (sem janela pro app), o `.vbs` esconde o console do
   próprio `.bat`, e o atalho da Área de Trabalho aponta pro `.vbs`.
+- Botão "Importar de outro menu_radial_config.json..." na aba Pastas
+  (`radial_menu.importar_pastas`) - lê a chave `"pastas"` de um config
+  compatível (ex.: o do Menu Radial da GAIA, mesmo schema) e importa só as
+  que existem neste PC, ignorando o resto.
 
 ### Removido
 
@@ -51,3 +55,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   dourado (`GAIA_GOLD #d4af6a`, widgets/botões) e pras cores originais do
   popup (`#facc15` no indicador de favorito, `#a855f7` no anel do monitor
   de hardware), igual ao Menu Radial original.
+- Popup radial ficava travado (aparecia mas não recebia clique nenhum)
+  sempre que a tela de Configurações estava aberta - `abrir_configuracoes`
+  chamava `janela.exec()`, que o Qt sempre trata como modal de aplicação
+  independente da flag configurada, bloqueando input de qualquer outra
+  janela do processo. Trocado por `.show()` não-modal, com a referência da
+  janela guardada em `IrisApp` (senão o GC do Python derrubava a janela
+  assim que a função retornava).

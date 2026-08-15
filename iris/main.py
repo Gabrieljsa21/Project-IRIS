@@ -43,6 +43,7 @@ class IrisApp(QObject):
         super().__init__()
         self.menu_radial_solicitado.connect(self._mostrar_menu_radial)
         self.tray_icon = None
+        self._janela_config = None
 
     def _mostrar_menu_radial(self):
         from iris.ui.menu_radial_qt import mostrar_menu_radial_qt
@@ -54,9 +55,21 @@ class IrisApp(QObject):
         self.menu_radial_solicitado.emit()
 
     def abrir_configuracoes(self):
+        """Não-modal de propósito - `.exec()` deixaria o app inteiro (inclusive
+        o popup radial) sem receber clique nenhum enquanto a janela estivesse
+        aberta. Guarda a referência em `self` pra não ser coletada pelo GC do
+        Python assim que a função retorna."""
+        if self._janela_config is not None:
+            self._janela_config.show()
+            self._janela_config.activateWindow()
+            return
         from iris.ui.settings_window import JanelaConfiguracoes
-        janela = JanelaConfiguracoes()
-        janela.exec()
+        self._janela_config = JanelaConfiguracoes()
+        self._janela_config.finished.connect(self._ao_fechar_configuracoes)
+        self._janela_config.show()
+
+    def _ao_fechar_configuracoes(self, *_args):
+        self._janela_config = None
 
     def montar_bandeja(self, app):
         caminho_icone = os.path.join(os.path.dirname(__file__), "..", "assets", "icones", "menu_radial_botao.png")
