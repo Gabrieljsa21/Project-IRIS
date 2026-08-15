@@ -29,6 +29,7 @@ class JanelaConfiguracoes(ModalBase):
         super().__init__(parent)
         self.setWindowTitle("IRIS - Configurações")
         self.resize(720, 560)
+        self._editando_categoria = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -181,6 +182,12 @@ class JanelaConfiguracoes(ModalBase):
         return widget
 
     def _preencher_checkboxes_itens_categoria(self, itens_marcados=None):
+        """Apps + pastas + OUTRAS categorias como itens selecionáveis - a
+        categoria sendo editada agora (`self._editando_categoria`) fica de
+        fora (não dá pra colocar uma categoria dentro dela mesma). Ciclos
+        INDIRETOS (A contém B, B contém A) não são bloqueados aqui - o
+        próprio popup já protege contra isso em runtime
+        (`_cadeia_categorias_atual`, `iris/ui/menu_radial_qt.py`)."""
         itens_marcados = itens_marcados or []
         while self._layout_itens_categoria.count():
             item = self._layout_itens_categoria.takeAt(0)
@@ -189,7 +196,12 @@ class JanelaConfiguracoes(ModalBase):
         self._checkboxes_itens_categoria = {}
 
         apps = app_launcher_mod.listar_nomes_apps_disponiveis()
-        for nome in apps:
+        pastas = [f"📁 {nome}" for nome in radial_menu.obter_pastas().keys()]
+        outras_categorias = [
+            nome for nome in radial_menu.obter_categorias().keys()
+            if nome != self._editando_categoria
+        ]
+        for nome in apps + pastas + outras_categorias:
             caixa = criar_checkbox(nome, marcado=nome in itens_marcados)
             self._checkboxes_itens_categoria[nome] = caixa
             self._layout_itens_categoria.addWidget(caixa)
@@ -224,6 +236,7 @@ class JanelaConfiguracoes(ModalBase):
 
     def _carregar_categoria_para_edicao(self, nome):
         dados = radial_menu.obter_categorias().get(nome, {})
+        self._editando_categoria = nome
         self._campo_nome_categoria.setText(nome)
         self._campo_icone_categoria.setText(dados.get("icone", "📁"))
         self._preencher_checkboxes_itens_categoria(dados.get("itens", []))
@@ -238,6 +251,10 @@ class JanelaConfiguracoes(ModalBase):
         radial_menu.salvar_categoria(nome, itens, icone=icone)
         self._atualizar_lista_categorias()
         self._dropdown_add_favorito.addItem(nome) if nome not in radial_menu.obter_favoritos() else None
+        self._editando_categoria = None
+        self._campo_nome_categoria.clear()
+        self._campo_icone_categoria.setText("📁")
+        self._preencher_checkboxes_itens_categoria()
 
     def _remover_categoria(self, nome):
         if not confirmar_acao(self, "Remover categoria", f"Remover a categoria '{nome}'?"):
@@ -247,6 +264,11 @@ class JanelaConfiguracoes(ModalBase):
         radial_menu.salvar_favoritos(favoritos)
         self._atualizar_lista_categorias()
         self._atualizar_lista_favoritos()
+        if self._editando_categoria == nome:
+            self._editando_categoria = None
+            self._campo_nome_categoria.clear()
+            self._campo_icone_categoria.setText("📁")
+        self._preencher_checkboxes_itens_categoria()
 
     # ------------------------------------------------------------------
     # Pastas

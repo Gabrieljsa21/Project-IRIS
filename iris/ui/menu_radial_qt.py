@@ -76,21 +76,45 @@ def _tamanho_para_profundidade(profundidade):
     return _raio_externo_nivel(profundidade) * 2 + MARGEM
 
 
-TAMANHO_MAXIMO = _tamanho_para_profundidade(MAX_NIVEIS_ANINHADOS - 1)
+def _profundidade_maxima_configurada():
+    """Quantos anéis de categoria-dentro-de-categoria existem DE VERDADE na
+    config atual - não o teto técnico (`MAX_NIVEIS_ANINHADOS`, que só limita
+    o quanto dá pra aninhar, não quanto ESTÁ aninhado agora). Reservar
+    margem pro teto técnico inteiro (3 níveis) quando o usuário só tem 1 ou
+    2 categorias configuradas, nenhuma dentro da outra, desperdiça a maior
+    parte da tela numa margem que nunca vai ser usada - por isso a margem
+    (`_margem_ancora_que_cabe`) usa ISSO, recalculado toda vez que o popup
+    abre (a config muda a qualquer momento pela tela de Configurações)."""
+    categorias = radial_menu.obter_categorias()
+    nomes_categoria = set(categorias.keys())
+    if not nomes_categoria:
+        return 1  # nenhuma categoria ainda - reserva margem pra abrir pelo menos 1
+
+    def _profundidade(nome, visitados):
+        if nome in visitados:
+            return 0  # ciclo (A contém B, B contém A) - não conta de novo
+        visitados = visitados | {nome}
+        itens = categorias.get(nome, {}).get("itens", [])
+        sub_categorias = [it for it in itens if it in nomes_categoria]
+        if not sub_categorias:
+            return 1
+        return 1 + max(_profundidade(sub, visitados) for sub in sub_categorias)
+
+    profundidade_real = max(_profundidade(nome, frozenset()) for nome in nomes_categoria)
+    return min(profundidade_real, MAX_NIVEIS_ANINHADOS - 1)
 
 
-def _margem_ancora_que_cabe(dimensao_tela):
+def _margem_ancora_que_cabe(dimensao_tela, profundidade_desejada):
     """Quanto de margem reservar num eixo pro popup nunca precisar "pular"
-    de lugar ao crescer - idealmente o tamanho MÁXIMO possível (todos os
-    níveis aninhados abertos), mas isso (1200px) é maior que a ALTURA de
-    monitores comuns (1080p, 1440p), o que travava o eixo Y sempre no
-    mesmo valor (bug real - clamp com limite inferior > superior sempre
-    vence). Tenta a profundidade mais funda que ainda cabe em metade da
-    tela; se nem a de profundidade 0 (favoritos, sempre visível) couber,
-    usa ela mesmo assim - nesse caso extremo aceita que anéis bem fundos
-    percam um pouco de tela, em troca do popup pelo menos abrir onde o
-    cursor está."""
-    for profundidade in range(MAX_NIVEIS_ANINHADOS - 1, -1, -1):
+    de lugar ao crescer até `profundidade_desejada` (ver
+    `_profundidade_maxima_configurada`) - se isso não couber em metade da
+    tela (comum no eixo Y de monitores widescreen, quando a config tem
+    bastante aninhamento de verdade), recua pra profundidades menores até
+    achar uma que caiba; no pior caso usa só o tamanho de favoritos
+    (profundidade 0), aceitando que aninhar bem fundo perto da borda pode
+    cortar um pouco, em troca do popup pelo menos abrir onde o cursor
+    está."""
+    for profundidade in range(profundidade_desejada, -1, -1):
         margem = _tamanho_para_profundidade(profundidade) // 2
         if margem <= dimensao_tela // 2:
             return margem
@@ -350,9 +374,12 @@ class RadialMenuQt(QWidget):
             tela = tela_atual.geometry()
             # Margem por EIXO, não uma única pros dois - a altura de um monitor
             # comum não comporta a mesma margem que a largura (ver
-            # `_margem_ancora_que_cabe`).
-            margem_x = _margem_ancora_que_cabe(tela.width())
-            margem_y = _margem_ancora_que_cabe(tela.height())
+            # `_margem_ancora_que_cabe`). E baseada no que está REALMENTE
+            # configurado agora, não no teto técnico (ver
+            # `_profundidade_maxima_configurada`).
+            profundidade_desejada = _profundidade_maxima_configurada()
+            margem_x = _margem_ancora_que_cabe(tela.width(), profundidade_desejada)
+            margem_y = _margem_ancora_que_cabe(tela.height(), profundidade_desejada)
             cx = max(tela.left() + margem_x, min(cursor_pos.x(), tela.right() - margem_x))
             cy = max(tela.top() + margem_y, min(cursor_pos.y(), tela.bottom() - margem_y))
             self._ancora_tela = (cx, cy)
