@@ -41,13 +41,14 @@ nenhum dado pessoal real).
 ## Plugin opcional da GAIA
 
 Quem também roda a [GAIA](../Project%20G.A.I.A) pode instalar
-`plugins/iris_plugin_gaia/` (`pip install -e plugins/iris_plugin_gaia`, com
-`iris` já instalado no mesmo venv) pra ganhar categorias extras no popup
-quando ela estiver de pé - hoje só **Avatar (Overlay)** está funcional de
-verdade (reaproveita a API HTTP já existente da GAIA); **Funções da Gaia**,
-**Animações do VTube Studio** e **Anime Tracker** são stubs documentados em
-`plugins/iris_plugin_gaia/TODO.md`, pendentes de um endpoint/IPC que ainda
-não existe do lado da GAIA.
+`plugins/iris_plugin_gaia/` pelo botão "Instalar integração com a GAIA"
+(Configurações → Preferências → Plugins) - ou manualmente
+(`uv pip install -e plugins/iris_plugin_gaia`) - pra ganhar categorias
+extras no popup quando ela estiver de pé. Hoje só **Avatar (Overlay)** está
+funcional de verdade (reaproveita a API HTTP já existente da GAIA);
+**Funções da Gaia**, **Animações do VTube Studio** e **Anime Tracker** são
+stubs documentados em `plugins/iris_plugin_gaia/TODO.md`, pendentes de um
+endpoint/IPC que ainda não existe do lado da GAIA.
 
 ## Estado atual
 
