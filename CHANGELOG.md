@@ -35,8 +35,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   mesmo padrão de inicialização sem console do `Project-ARGUS`: o `.bat` sobe
   o IRIS via `pythonw` (sem janela pro app), o `.vbs` esconde o console do
   próprio `.bat`, e o atalho da Área de Trabalho aponta pro `.vbs`.
-
-### Removido
+- Botão "Importar de outro menu_radial_config.json..." na aba Pastas
+  (`radial_menu.importar_pastas`) - lê a chave `"pastas"` de um config
+  compatível (ex.: o do Menu Radial da GAIA, mesmo schema) e importa só as
+  que existem neste PC, ignorando o resto.
+- Aba Categorias agora permite aninhar pastas E outras categorias como
+  itens (igual a GAIA - "2026-08-07, pedido do usuário: pode permitir mais
+  de 2 anéis") - a extração original só listava apps como itens
+  selecionáveis, uma lacuna do porte (o motor do popup já suportava
+  aninhamento desde sempre, só a tela de Configurações não expunha a
+  opção). Categoria sendo editada fica de fora da própria lista (evita
+  auto-referência direta); ciclos indiretos continuam protegidos em
+  runtime pelo popup (`_cadeia_categorias_atual`).
 
 - Toggle "Automação de apps" (kill-switch) - na GAIA esse flag existe pra
   impedir a LLM/agente de abrir/fechar programas sozinha; reaproveitá-lo
@@ -51,3 +61,41 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   dourado (`GAIA_GOLD #d4af6a`, widgets/botões) e pras cores originais do
   popup (`#facc15` no indicador de favorito, `#a855f7` no anel do monitor
   de hardware), igual ao Menu Radial original.
+- Popup radial ficava travado (aparecia mas não recebia clique nenhum)
+  sempre que a tela de Configurações estava aberta - `abrir_configuracoes`
+  chamava `janela.exec()`, que o Qt sempre trata como modal de aplicação
+  independente da flag configurada, bloqueando input de qualquer outra
+  janela do processo. Trocado por `.show()` não-modal, com a referência da
+  janela guardada em `IrisApp` (senão o GC do Python derrubava a janela
+  assim que a função retornava).
+- Anel do popup renderizava só 1 fatia (a favorita sob o cursor, ex.: "Bloco
+  De Notas") em vez das 4, especificamente ao abrir o popup logo depois de
+  interagir com a tela de Configurações. **Causa raiz real** (achada com um
+  log incondicional temporário comparando o que o popup achava que tinha
+  vs. o que aparecia na tela - 3 tentativas anteriores de "consertar
+  composição do DWM" foram todas um beco sem saída, não existia bug de
+  composição nenhum): o próprio hotkey que abre o popup termina em Espaço
+  (`Ctrl+Alt+Espaço`) - esse Espaço físico às vezes vaza pro popup recém-
+  focado como um `keyPressEvent` normal, e `keyPressEvent` trata qualquer
+  espaço digitado como o INÍCIO de uma busca por texto. Isso filtrava os
+  favoritos pra só os que têm espaço no nome ("bloco de notas" tem; "
+  calculadora"/"youtube"/"navegador" não), escondendo os outros 3.
+  `keyPressEvent` agora ignora um espaço como PRIMEIRO caractere do filtro
+  (ninguém começa uma busca de propósito com espaço) - a busca de verdade
+  (digitar outras letras) continua funcionando normalmente.
+- Eixo Y do popup ignorava a posição real do cursor, sempre abrindo perto do
+  centro vertical do monitor (eixo X funcionava normal) - a margem antiga
+  reservava espaço pro teto TÉCNICO de aninhamento (`MAX_NIVEIS_ANINHADOS`,
+  3 categorias aninhadas, 1200px), maior que a ALTURA de monitores comuns
+  (1080p/1440p), o que colapsava o clamp de Y num valor fixo.
+  `_margem_ancora_que_cabe` agora reserva margem pra profundidade
+  REALMENTE alcançável a partir dos FAVORITOS ATUAIS
+  (`_profundidade_maxima_configurada`, recalculado toda vez que o popup
+  abre), não o teto técnico. Ajuste (2026-08-15, pedido do usuário): uma
+  categoria que existe mas não está favoritada não é alcançável nesta
+  sessão do popup (a lista de favoritos não muda sem recriar o popup) -
+  contava errado antes ("existe pelo menos 1 categoria no sistema" já
+  reservava margem pra 1 nível, mesmo sem nenhuma favoritada). Sem NENHUMA
+  categoria favoritada, a margem agora é 0 (só o tamanho real da janela,
+  216px em vez de 344px+) - popup abre exatamente onde o cursor está,
+  inclusive numa quina do monitor.

@@ -34,6 +34,7 @@ import iris.core.app_launcher as app_launcher_mod
 import iris.core.hardware_monitor as hardware_monitor
 from iris.plugins import registry as plugin_registry
 
+
 # ---------------------------------------------------------------------------
 # Geometria - ângulo 0° = 3h (leste), crescendo ANTI-horário (Qt); item 0 no
 # topo (90°), os seguintes em sentido HORÁRIO (ângulo decrescente).
@@ -76,7 +77,57 @@ def _tamanho_para_profundidade(profundidade):
     return _raio_externo_nivel(profundidade) * 2 + MARGEM
 
 
-TAMANHO_MAXIMO = _tamanho_para_profundidade(MAX_NIVEIS_ANINHADOS - 1)
+def _profundidade_maxima_configurada(favoritos_atuais):
+    """Quantos anéis de categoria-dentro-de-categoria são ALCANÇÁVEIS de
+    verdade a partir dos favoritos ATUAIS - não o teto técnico
+    (`MAX_NIVEIS_ANINHADOS`, que só limita o quanto DÁ pra aninhar) nem
+    "quantas categorias existem no sistema" (uma categoria que existe mas
+    não está favoritada agora não é alcançável nesta sessão do popup - a
+    lista de favoritos não muda sem recriar o popup). Se não há NENHUMA
+    categoria favoritada, o popup nunca vai abrir um 2º anel - reservar
+    margem pra isso seria espaço 100% desperdiçado. Só categorias PRÓPRIAS
+    do usuário aninham mais categorias dentro - categorias de plugin e os 3
+    itens especiais (Pastas/Recentes/Steam) sempre abrem uma lista achatada,
+    nunca um anel mais fundo."""
+    categorias = radial_menu.obter_categorias()
+    nomes_categoria = set(categorias.keys())
+    categorias_planas = set(CATEGORIAS.keys()) | set(_categorias_plugins_disponiveis().keys())
+    todas_categorias = nomes_categoria | categorias_planas
+
+    def _profundidade(nome, visitados):
+        if nome in categorias_planas:
+            return 1
+        if nome not in nomes_categoria or nome in visitados:
+            return 0  # não é categoria, ou ciclo (A contém B, B contém A)
+        visitados = visitados | {nome}
+        itens = categorias.get(nome, {}).get("itens", [])
+        sub_categorias = [it for it in itens if it in todas_categorias]
+        if not sub_categorias:
+            return 1
+        return 1 + max(_profundidade(sub, visitados) for sub in sub_categorias)
+
+    categorias_favoritadas = [f for f in favoritos_atuais if f in todas_categorias]
+    if not categorias_favoritadas:
+        return 0
+    profundidade_real = max(_profundidade(nome, frozenset()) for nome in categorias_favoritadas)
+    return min(profundidade_real, MAX_NIVEIS_ANINHADOS - 1)
+
+
+def _margem_ancora_que_cabe(dimensao_tela, profundidade_desejada):
+    """Quanto de margem reservar num eixo pro popup nunca precisar "pular"
+    de lugar ao crescer até `profundidade_desejada` (ver
+    `_profundidade_maxima_configurada`) - se isso não couber em metade da
+    tela (comum no eixo Y de monitores widescreen, quando a config tem
+    bastante aninhamento de verdade), recua pra profundidades menores até
+    achar uma que caiba; no pior caso usa só o tamanho de favoritos
+    (profundidade 0), aceitando que aninhar bem fundo perto da borda pode
+    cortar um pouco, em troca do popup pelo menos abrir onde o cursor
+    está."""
+    for profundidade in range(profundidade_desejada, -1, -1):
+        margem = _tamanho_para_profundidade(profundidade) // 2
+        if margem <= dimensao_tela // 2:
+            return margem
+    return _tamanho_para_profundidade(0) // 2
 
 # A paleta de cor é uma RODA DE COR CONTÍNUA: a cor de uma fatia em destaque
 # vem do ÂNGULO ABSOLUTO dela na tela (matiz = função do ângulo), não de um
@@ -330,9 +381,16 @@ class RadialMenuQt(QWidget):
             # mouse estava de verdade em setups com mais de 1 monitor).
             tela_atual = QGuiApplication.screenAt(cursor_pos) or QGuiApplication.primaryScreen()
             tela = tela_atual.geometry()
-            metade_maxima = TAMANHO_MAXIMO // 2
-            cx = max(tela.left() + metade_maxima, min(cursor_pos.x(), tela.right() - metade_maxima))
-            cy = max(tela.top() + metade_maxima, min(cursor_pos.y(), tela.bottom() - metade_maxima))
+            # Margem por EIXO, não uma única pros dois - a altura de um monitor
+            # comum não comporta a mesma margem que a largura (ver
+            # `_margem_ancora_que_cabe`). E baseada no que está REALMENTE
+            # configurado agora, não no teto técnico (ver
+            # `_profundidade_maxima_configurada`).
+            profundidade_desejada = _profundidade_maxima_configurada(self.favoritos_completos)
+            margem_x = _margem_ancora_que_cabe(tela.width(), profundidade_desejada)
+            margem_y = _margem_ancora_que_cabe(tela.height(), profundidade_desejada)
+            cx = max(tela.left() + margem_x, min(cursor_pos.x(), tela.right() - margem_x))
+            cy = max(tela.top() + margem_y, min(cursor_pos.y(), tela.bottom() - margem_y))
             self._ancora_tela = (cx, cy)
 
         tamanho = _tamanho_para_profundidade(len(self.pilha))
@@ -688,6 +746,17 @@ class RadialMenuQt(QWidget):
                 self.update()
             return
         texto = event.text()
+        if texto == " " and not self.filtro_busca:
+            # Achado com log de diagnóstico (2026-08-15) - o próprio hotkey
+            # que abre o popup termina em Espaço (Ctrl+Alt+Espaço); esse
+            # Espaço physical às vezes vaza pro popup recém-focado como um
+            # keyPressEvent normal, batendo bem depois do popup já estar de
+            # pé. Sem esse guard, virava o PRIMEIRO caractere da busca -
+            # filtrava os favoritos pra só os que tem espaço no nome (ex.:
+            # "bloco de notas"), escondendo "calculadora"/"youtube"/
+            # "navegador" (nomes de uma palavra só). Ninguém começa uma
+            # busca de propósito com espaço, então ignorar é seguro.
+            return
         if texto and (texto.isalnum() or texto == " "):
             self.filtro_busca += texto
             self.pagina_1 = 0
@@ -1047,5 +1116,6 @@ def mostrar_menu_radial_qt():
     janela = RadialMenuQt()
     _popup_atual = janela
     janela.show()
+    janela.raise_()
     janela.activateWindow()
     janela.setFocus()
