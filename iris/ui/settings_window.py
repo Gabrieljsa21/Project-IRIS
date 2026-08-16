@@ -8,6 +8,7 @@ escopo desta extração) - só o necessário pra configurar o launcher sozinho:
 favoritos, categorias, pastas, Steam e as poucas preferências do core."""
 import json
 import os
+import subprocess
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFileDialog, QHBoxLayout, QVBoxLayout, QWidget
@@ -500,6 +501,14 @@ class JanelaConfiguracoes(ModalBase):
         registrados = plugin_registry.providers_registrados()
         if not registrados:
             layout.addWidget(criar_descricao("Nenhum plugin instalado neste processo."))
+            # 🔥 2026-08-16 (pedido do usuário, mesma ideia aplicada na GAIA
+            # pro Argus) - "tudo configurável fica no Painel", não só um
+            # comando de terminal documentado no README. Só GAIA por
+            # enquanto - é o único plugin que existe hoje.
+            self._btn_instalar_plugin_gaia = criar_botao("Instalar integração com a GAIA")
+            self._btn_instalar_plugin_gaia.clicked.connect(self._instalar_plugin_gaia)
+            layout.addWidget(self._btn_instalar_plugin_gaia)
+            layout.addWidget(criar_descricao("Instala plugins/iris_plugin_gaia (repo irmão) - depois de reiniciar o IRIS, categorias da GAIA aparecem no popup se ela estiver rodando."))
         else:
             for provider in registrados:
                 disponivel = provider.esta_disponivel()
@@ -508,6 +517,38 @@ class JanelaConfiguracoes(ModalBase):
 
         layout.addStretch(1)
         return widget
+
+    def _instalar_plugin_gaia(self):
+        self._btn_instalar_plugin_gaia.setEnabled(False)
+        self._btn_instalar_plugin_gaia.setText("Instalando...")
+
+        def _trabalho():
+            raiz_repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            caminho_plugin = os.path.join(raiz_repo, "plugins", "iris_plugin_gaia")
+            if not os.path.isdir(caminho_plugin):
+                raise RuntimeError(f"Pasta \"{caminho_plugin}\" não encontrada.")
+            # 🔥 "uv pip" (não "python -m pip") - `uv venv` cria o venv SEM
+            # pip por padrão (achado real testando isto agora - o venv do
+            # IRIS não tem `pip` nenhum instalado, `python -m pip` falha com
+            # "No module named pip"). `cwd=raiz_repo` pra `uv` achar o
+            # `.venv` daqui sozinho, sem precisar apontar o interpretador
+            # manualmente.
+            resultado = subprocess.run(
+                ["uv", "pip", "install", "-e", caminho_plugin],
+                cwd=raiz_repo, capture_output=True, text=True,
+            )
+            if resultado.returncode != 0:
+                raise RuntimeError(resultado.stderr.strip() or "uv pip install falhou sem mensagem de erro.")
+
+        def _ao_terminar(_resultado, erro):
+            self._btn_instalar_plugin_gaia.setEnabled(True)
+            self._btn_instalar_plugin_gaia.setText("Instalar integração com a GAIA")
+            if erro:
+                avisar(self, "Plugin GAIA", f"Erro ao instalar: {erro}")
+                return
+            avisar(self, "Plugin GAIA", "Plugin instalado. Reinicie o IRIS pra ele ser carregado.")
+
+        executar_em_thread(_trabalho, _ao_terminar, parent=self)
 
 
 class _LabelSimples(QWidget):
