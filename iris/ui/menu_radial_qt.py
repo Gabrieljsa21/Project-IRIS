@@ -20,7 +20,6 @@ de chamar isto (mesmo padrão documentado em `ARQUITETURA.md`)."""
 import math
 import os
 import threading
-import traceback
 from datetime import datetime
 
 from PySide6.QtCore import Qt, QRectF, QTimer, QVariantAnimation, QEasingCurve
@@ -28,45 +27,12 @@ from PySide6.QtGui import (
     QPainter, QPainterPath, QColor, QConicalGradient, QRadialGradient, QFont,
     QPen, QBrush, QCursor, QGuiApplication, QImage, QPixmap,
 )
-from PySide6.QtWidgets import QApplication, QWidget, QGraphicsBlurEffect, QGraphicsScene, QGraphicsPixmapItem
+from PySide6.QtWidgets import QWidget, QGraphicsBlurEffect, QGraphicsScene, QGraphicsPixmapItem
 
 import iris.core.radial_menu as radial_menu
 import iris.core.app_launcher as app_launcher_mod
 import iris.core.hardware_monitor as hardware_monitor
 from iris.plugins import registry as plugin_registry
-
-# Diagnóstico temporário (2026-08-15) - ver `iris/main.py` (mesmo padrão,
-# `sys.excepthook`) pro contexto completo: uma exceção real dentro de um
-# virtual override do Qt (paintEvent, mousePressEvent...) pode derrubar o
-# processo inteiro sem deixar rastro no console. Tirar assim que a causa
-# raiz do bug "só Bloco de Notas aparece / clicar fora derruba o IRIS" for
-# encontrada.
-_ARQUIVO_LOG_ERRO_POPUP = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "iris_erro.log"
-)
-
-
-def _logar_erro_popup(contexto):
-    try:
-        with open(_ARQUIVO_LOG_ERRO_POPUP, "a", encoding="utf-8") as f:
-            f.write(f"\n=== {datetime.now().isoformat()} - {contexto} ===\n")
-            traceback.print_exc(file=f)
-    except Exception:
-        pass
-
-
-def _com_log_de_erro(contexto):
-    """Decorador de diagnóstico temporário (ver comentário acima) - loga e
-    ENGOLE a exceção (não deixa propagar pro Qt/C++) pros handlers de
-    mouse/foco/fechamento, onde é seguro só desistir do evento atual."""
-    def decorador(func):
-        def wrapper(self, *args, **kwargs):
-            try:
-                return func(self, *args, **kwargs)
-            except Exception:
-                _logar_erro_popup(contexto)
-        return wrapper
-    return decorador
 
 
 # ---------------------------------------------------------------------------
@@ -372,7 +338,6 @@ class RadialMenuQt(QWidget):
 
         self._arrastando_indice = None      # índice sendo arrastado no anel de favoritos (Alt+arrastar), ou None
         self._ancora_tela = None            # (cx, cy) fixo - o popup só REDIMENSIONA em volta dele, nunca se move
-        self._suprimir_fechar_por_foco = False  # True durante o hide()+show() de `_forcar_recomposicao_dwm`
         self.tamanho_atual = _tamanho_para_profundidade(0)
 
         # Ícones reais dos jogos da Steam - lidos 1x aqui (não a cada
@@ -662,7 +627,6 @@ class RadialMenuQt(QWidget):
 
         self._atualizar_hover(pos)
 
-    @_com_log_de_erro("mousePressEvent")
     def mousePressEvent(self, event):
         cx = cy = self.tamanho_atual / 2
         pos = event.position()
@@ -752,7 +716,6 @@ class RadialMenuQt(QWidget):
         if event.button() == Qt.LeftButton:
             self.close()
 
-    @_com_log_de_erro("mouseReleaseEvent")
     def mouseReleaseEvent(self, event):
         if self._arrastando_indice is not None:
             self._arrastando_indice = None
@@ -783,6 +746,17 @@ class RadialMenuQt(QWidget):
                 self.update()
             return
         texto = event.text()
+        if texto == " " and not self.filtro_busca:
+            # Achado com log de diagnóstico (2026-08-15) - o próprio hotkey
+            # que abre o popup termina em Espaço (Ctrl+Alt+Espaço); esse
+            # Espaço physical às vezes vaza pro popup recém-focado como um
+            # keyPressEvent normal, batendo bem depois do popup já estar de
+            # pé. Sem esse guard, virava o PRIMEIRO caractere da busca -
+            # filtrava os favoritos pra só os que tem espaço no nome (ex.:
+            # "bloco de notas"), escondendo "calculadora"/"youtube"/
+            # "navegador" (nomes de uma palavra só). Ninguém começa uma
+            # busca de propósito com espaço, então ignorar é seguro.
+            return
         if texto and (texto.isalnum() or texto == " "):
             self.filtro_busca += texto
             self.pagina_1 = 0
@@ -795,10 +769,7 @@ class RadialMenuQt(QWidget):
         if event.key() == Qt.Key_Alt:
             self._atualizar_icone_cursor(False)
 
-    @_com_log_de_erro("focusOutEvent")
     def focusOutEvent(self, event):
-        if self._suprimir_fechar_por_foco:
-            return
         self.close()
 
     def showEvent(self, event):
@@ -816,7 +787,6 @@ class RadialMenuQt(QWidget):
         anim.start()
         self._anim_abertura = anim
 
-    @_com_log_de_erro("closeEvent")
     def closeEvent(self, event):
         global _popup_atual
         if _popup_atual is self:
@@ -1033,20 +1003,6 @@ class RadialMenuQt(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        try:
-            self._paintEvent_real(painter)
-        except Exception:
-            # Diagnóstico temporário (2026-08-15, ver iris/main.py) - uma
-            # exceção aqui dentro, sem isso, deixaria o `painter` sem
-            # `.end()` (loop abaixo já não chegaria lá) - PySide6 costuma
-            # travar/derrubar o processo inteiro no próximo paintEvent
-            # depois disso, o que bate com "clicar fora derruba o IRIS
-            # todo". Loga ANTES de garantir o end() no finally.
-            _logar_erro_popup("paintEvent")
-        finally:
-            painter.end()
-
-    def _paintEvent_real(self, painter):
         painter.setRenderHint(QPainter.Antialiasing)
         cx = cy = self.tamanho_atual / 2
 
@@ -1133,6 +1089,8 @@ class RadialMenuQt(QWidget):
             painter.setFont(QFont("Segoe UI", 11, QFont.Bold))
             painter.drawText(QRectF(0, 6, self.tamanho_atual, 24), Qt.AlignCenter, f"🔎 {self.filtro_busca}")
 
+        painter.end()
+
 
 _popup_atual = None
 
@@ -1161,35 +1119,3 @@ def mostrar_menu_radial_qt():
     janela.raise_()
     janela.activateWindow()
     janela.setFocus()
-    # O DWM do Windows às vezes só compõe parcialmente o 1º frame de uma
-    # janela translúcida (WA_TranslucentBackground) quando ela abre
-    # SOBREPONDO outra janela do mesmo app (ex.: a tela de Configurações
-    # visível e em foco) - sobra só 1 fatia "fantasma" desenhada até o DWM
-    # recompor de verdade. 2 tentativas anteriores não bastaram: `repaint()`
-    # sozinho é só do lado do Qt; um "nudge" de posição (`move()` 1px e
-    # volta) também não - as 2 chamadas de `move()` rodam síncronas, sem
-    # devolver o controle pro event loop entre elas, então o Windows nunca
-    # chega a REAGIR à posição intermediária antes dela já ter voltado.
-    # `hide()` + `show()` de verdade (com `processEvents()` no meio, pra
-    # garantir que o Windows processe o hide antes do show) derruba e
-    # recria a superfície da janela do zero - bem mais agressivo, mas é o
-    # jeito mais confiável de forçar uma recomposição de verdade.
-    def _forcar_recomposicao_dwm():
-        if janela is None or not janela.isVisible():
-            return
-        # `hide()` faz o popup perder foco - sem a flag, `focusOutEvent`
-        # chamaria `close()` de verdade (fecha o popup, reseta
-        # `_popup_atual`) ANTES do `show()` seguinte conseguir reabrir -
-        # bug real que apareceu testando isto (o popup "desaparecia
-        # sozinho" no meio do nudge).
-        janela._suprimir_fechar_por_foco = True
-        janela.hide()
-        QApplication.processEvents()
-        janela.show()
-        janela.raise_()
-        janela.activateWindow()
-        janela.repaint()
-        janela._suprimir_fechar_por_foco = False
-
-    QTimer.singleShot(0, _forcar_recomposicao_dwm)
-    QTimer.singleShot(60, _forcar_recomposicao_dwm)

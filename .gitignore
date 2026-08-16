@@ -11,7 +11,6 @@ dist/
 # Dados gerados em runtime (config real do usuário - nunca commitado)
 data/*.json
 !data/menu_radial_config.example.json
-iris_erro.log
 
 # Editores / SO
 .vscode/

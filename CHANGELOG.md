@@ -68,22 +68,21 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   janela do processo. Trocado por `.show()` não-modal, com a referência da
   janela guardada em `IrisApp` (senão o GC do Python derrubava a janela
   assim que a função retornava).
-- Anel do popup renderiza só 1 fatia (a favorita sob o cursor) em vez das 4,
-  sempre que o popup abre SOBREPONDO outra janela do próprio app (ex.: a
-  tela de Configurações visível e em foco) - suspeita é o DWM do Windows só
-  compondo parcialmente o 1º frame de uma janela translúcida
-  (`WA_TranslucentBackground`) nesse cenário; instrumentação de diagnóstico
-  (`iris_erro.log`, ver mais abaixo) confirmou que NÃO é uma exceção Python -
-  reforça a suspeita de ser mesmo composição do DWM. **Ainda não confirmado
-  como resolvido** - 1ª tentativa (`raise_()` + `repaint()`) e 2ª tentativa
-  (`move()` 1px e volta) não bastaram (usuário confirmou o mesmo erro depois
-  de cada uma); 3ª tentativa em `mostrar_menu_radial_qt` faz um `hide()` +
-  `show()` de verdade (com `QApplication.processEvents()` no meio) - bem
-  mais agressivo que só mover, derruba e recria a superfície da janela do
-  zero. Precisou de uma flag nova (`_suprimir_fechar_por_foco`) porque
-  `hide()` sozinho já dispara `focusOutEvent` → `close()` de verdade
-  (achado testando esta tentativa - o popup "sumia sozinho" no meio do
-  nudge). Ainda precisa de validação no uso real.
+- Anel do popup renderizava só 1 fatia (a favorita sob o cursor, ex.: "Bloco
+  De Notas") em vez das 4, especificamente ao abrir o popup logo depois de
+  interagir com a tela de Configurações. **Causa raiz real** (achada com um
+  log incondicional temporário comparando o que o popup achava que tinha
+  vs. o que aparecia na tela - 3 tentativas anteriores de "consertar
+  composição do DWM" foram todas um beco sem saída, não existia bug de
+  composição nenhum): o próprio hotkey que abre o popup termina em Espaço
+  (`Ctrl+Alt+Espaço`) - esse Espaço físico às vezes vaza pro popup recém-
+  focado como um `keyPressEvent` normal, e `keyPressEvent` trata qualquer
+  espaço digitado como o INÍCIO de uma busca por texto. Isso filtrava os
+  favoritos pra só os que têm espaço no nome ("bloco de notas" tem; "
+  calculadora"/"youtube"/"navegador" não), escondendo os outros 3.
+  `keyPressEvent` agora ignora um espaço como PRIMEIRO caractere do filtro
+  (ninguém começa uma busca de propósito com espaço) - a busca de verdade
+  (digitar outras letras) continua funcionando normalmente.
 - Eixo Y do popup ignorava a posição real do cursor, sempre abrindo perto do
   centro vertical do monitor (eixo X funcionava normal) - a margem antiga
   reservava espaço pro teto TÉCNICO de aninhamento (`MAX_NIVEIS_ANINHADOS`,
