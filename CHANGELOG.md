@@ -10,6 +10,9 @@ foi documentada retroativamente; o histórico versionado começa em `0.1.0`.
 
 ## [Unreleased]
 
+### Alterado
+- Ícone da bandeja do sistema (`assets/icones/menu_radial_botao.png`) trocado pela arte oficial nova do IRIS.
+
 ## [0.2.1] - 2026-08-15: Segurança
 
 ### Segurança
