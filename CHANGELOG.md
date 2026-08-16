@@ -1,101 +1,39 @@
 # Changelog
 
-Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
+Histórico de alto nível do que muda no Project-IRIS, por versão. Detalhe técnico
+completo de cada decisão está em `ARQUITETURA.md`.
+
+Versionamento: [Semantic Versioning](VERSIONAMENTO_CHANGELOG.md). A extração
+inicial do Menu Radial (scaffold, port do core, plugin da GAIA, documentação -
+ver `ARQUITETURA.md` pro histórico completo) é anterior a este arquivo e não
+foi documentada retroativamente; o histórico versionado começa em `0.1.0`.
 
 ## [Unreleased]
 
-### Adicionado
+## [0.2.1] - 2026-08-15: Segurança
 
-- Extração inicial do Menu Radial que vivia embutido na GAIA (`Project
-  G.A.I.A/assistant`) pra um projeto independente, `Project-IRIS`. Ver
-  `ARQUITETURA.md` pro histórico completo da extração.
-- Core (`iris/`): popup radial (`ui/menu_radial_qt.py`), persistência
-  (`core/radial_menu.py`), app launcher genérico (`core/app_launcher.py` +
-  `core/apps_scanner.py`), monitor de hardware (`core/hardware_monitor.py`),
-  sistema de plugins (`plugins/base.py` + `plugins/registry.py`) - zero
-  dependência de GAIA.
-- Entry point standalone (`iris/main.py`) - própria `QApplication`, hotkey
-  global `Ctrl+Alt+Espaço`, ícone na bandeja do sistema.
-- Tela de Configurações própria (`iris/ui/settings_window.py`) - favoritos,
-  categorias, pastas, jogos da Steam e preferências do core, criada do zero
-  (a GAIA nunca teve uma versão standalone dessa tela).
-- Widgets Qt vendorizados de `Project G.A.I.A/assistant/ui/qt_widgets.py`
-  (`iris/ui/qt_widgets.py`) - só o subconjunto usado pela tela de
-  Configurações.
-- Plugin opcional `plugins/iris_plugin_gaia/` - implementa os 4 pontos de
-  acoplamento identificados na extração como `ActionProvider`. Só **Avatar
-  (Overlay)** está funcional (reaproveita a API HTTP existente da GAIA,
-  porta 8765); **Funções da Gaia**, **Animações do VTube Studio** e **Anime
-  Tracker** são stubs documentados em `plugins/iris_plugin_gaia/TODO.md`,
-  pendentes de endpoint/IPC do lado da GAIA.
-- `data/menu_radial_config.example.json` - schema de referência (sem dado
-  pessoal real).
-- `README.md`, `ARQUITETURA.md`, `TODO.md`, `pyproject.toml`, `.gitignore`.
-- `iniciar_iris.bat` + `iniciar_iris_oculto.vbs` + `criar_atalho_desktop.vbs` -
-  mesmo padrão de inicialização sem console do `Project-ARGUS`: o `.bat` sobe
-  o IRIS via `pythonw` (sem janela pro app), o `.vbs` esconde o console do
-  próprio `.bat`, e o atalho da Área de Trabalho aponta pro `.vbs`.
-- Botão "Importar de outro menu_radial_config.json..." na aba Pastas
-  (`radial_menu.importar_pastas`) - lê a chave `"pastas"` de um config
-  compatível (ex.: o do Menu Radial da GAIA, mesmo schema) e importa só as
-  que existem neste PC, ignorando o resto.
-- Aba Categorias agora permite aninhar pastas E outras categorias como
-  itens (igual a GAIA - "2026-08-07, pedido do usuário: pode permitir mais
-  de 2 anéis") - a extração original só listava apps como itens
-  selecionáveis, uma lacuna do porte (o motor do popup já suportava
-  aninhamento desde sempre, só a tela de Configurações não expunha a
-  opção). Categoria sendo editada fica de fora da própria lista (evita
-  auto-referência direta); ciclos indiretos continuam protegidos em
-  runtime pelo popup (`_cadeia_categorias_atual`).
+### Segurança
+- Repositório passou a ser público - `.gitignore` agora exclui `.env` explicitamente (só `.env.example`, sem dado real, era versionado). Conferido o histórico completo do Git antes da publicação: nenhuma chave/token real chegou a ser commitado em nenhum momento.
 
-- Toggle "Automação de apps" (kill-switch) - na GAIA esse flag existe pra
-  impedir a LLM/agente de abrir/fechar programas sozinha; reaproveitá-lo
-  pro clique manual num favorito do IRIS não fazia sentido (o clique já é
-  intencional). Removido de `core/radial_menu.py`, `ui/menu_radial_qt.py` e
-  da tela de Configurações.
+## [0.2.0] - 2026-08-15: Corrige popup bloqueado, aninhamento de categorias e renderização parcial
 
-### Corrigido
+### Novidades
+- Botão "Importar de outro menu_radial_config.json..." na aba Pastas.
+- Aba Categorias permite aninhar pastas E outras categorias como itens (o motor do popup já suportava aninhamento desde sempre, só a tela de Configurações não expunha a opção).
+- Margem do popup passou a ser dinâmica, calculada pela profundidade REALMENTE alcançável a partir dos favoritos atuais - sem nenhuma categoria favoritada, o popup abre exatamente onde o cursor está, sem margem sobrando.
 
-- Paleta de cores do porte inicial estava com um acento ciano (`#7dd3fc`)
-  que não existe na identidade visual da GAIA - revertido pro acento
-  dourado (`GAIA_GOLD #d4af6a`, widgets/botões) e pras cores originais do
-  popup (`#facc15` no indicador de favorito, `#a855f7` no anel do monitor
-  de hardware), igual ao Menu Radial original.
-- Popup radial ficava travado (aparecia mas não recebia clique nenhum)
-  sempre que a tela de Configurações estava aberta - `abrir_configuracoes`
-  chamava `janela.exec()`, que o Qt sempre trata como modal de aplicação
-  independente da flag configurada, bloqueando input de qualquer outra
-  janela do processo. Trocado por `.show()` não-modal, com a referência da
-  janela guardada em `IrisApp` (senão o GC do Python derrubava a janela
-  assim que a função retornava).
-- Anel do popup renderizava só 1 fatia (a favorita sob o cursor, ex.: "Bloco
-  De Notas") em vez das 4, especificamente ao abrir o popup logo depois de
-  interagir com a tela de Configurações. **Causa raiz real** (achada com um
-  log incondicional temporário comparando o que o popup achava que tinha
-  vs. o que aparecia na tela - 3 tentativas anteriores de "consertar
-  composição do DWM" foram todas um beco sem saída, não existia bug de
-  composição nenhum): o próprio hotkey que abre o popup termina em Espaço
-  (`Ctrl+Alt+Espaço`) - esse Espaço físico às vezes vaza pro popup recém-
-  focado como um `keyPressEvent` normal, e `keyPressEvent` trata qualquer
-  espaço digitado como o INÍCIO de uma busca por texto. Isso filtrava os
-  favoritos pra só os que têm espaço no nome ("bloco de notas" tem; "
-  calculadora"/"youtube"/"navegador" não), escondendo os outros 3.
-  `keyPressEvent` agora ignora um espaço como PRIMEIRO caractere do filtro
-  (ninguém começa uma busca de propósito com espaço) - a busca de verdade
-  (digitar outras letras) continua funcionando normalmente.
-- Eixo Y do popup ignorava a posição real do cursor, sempre abrindo perto do
-  centro vertical do monitor (eixo X funcionava normal) - a margem antiga
-  reservava espaço pro teto TÉCNICO de aninhamento (`MAX_NIVEIS_ANINHADOS`,
-  3 categorias aninhadas, 1200px), maior que a ALTURA de monitores comuns
-  (1080p/1440p), o que colapsava o clamp de Y num valor fixo.
-  `_margem_ancora_que_cabe` agora reserva margem pra profundidade
-  REALMENTE alcançável a partir dos FAVORITOS ATUAIS
-  (`_profundidade_maxima_configurada`, recalculado toda vez que o popup
-  abre), não o teto técnico. Ajuste (2026-08-15, pedido do usuário): uma
-  categoria que existe mas não está favoritada não é alcançável nesta
-  sessão do popup (a lista de favoritos não muda sem recriar o popup) -
-  contava errado antes ("existe pelo menos 1 categoria no sistema" já
-  reservava margem pra 1 nível, mesmo sem nenhuma favoritada). Sem NENHUMA
-  categoria favoritada, a margem agora é 0 (só o tamanho real da janela,
-  216px em vez de 344px+) - popup abre exatamente onde o cursor está,
-  inclusive numa quina do monitor.
+### Correções
+- Popup radial ficava travado (aparecia mas não recebia clique nenhum) sempre que a tela de Configurações estava aberta - `janela.exec()` sempre vira modal de aplicação independente da flag configurada; trocado por `.show()` não-modal.
+- Eixo Y do popup ignorava a posição real do cursor, sempre abrindo perto do centro vertical do monitor.
+- Anel do popup renderizava só 1 fatia (a favorita sob o cursor) em vez das 4, especificamente ao abrir o popup logo depois de interagir com a tela de Configurações. **Causa raiz real**: o próprio hotkey que abre o popup termina em Espaço (`Ctrl+Alt+Espaço`) - esse Espaço físico às vezes vaza pro popup recém-focado como um `keyPressEvent` normal, e o código tratava qualquer espaço digitado como início de busca, filtrando os favoritos pra só os que têm espaço no nome. Corrigido ignorando espaço como primeiro caractere do filtro. Três tentativas anteriores de "consertar composição do DWM" (raise+repaint, nudge de posição, hide+show) foram um beco sem saída - revertidas na mesma correção, não existia bug de composição nenhum.
+
+## [0.1.1] - 2026-08-15: Paleta e limpeza
+
+### Correções
+- Paleta de cores do porte inicial tinha um acento ciano que não existe na identidade visual da GAIA - revertido pro acento dourado e pras cores originais do popup.
+- Removido o toggle de automação de apps (kill-switch) herdado da GAIA - lá existe pra impedir a LLM de agir sozinha; não fazia sentido pro clique manual num favorito do IRIS, que já é sempre intencional.
+
+## [0.1.0] - 2026-08-15: Inicialização sem console
+
+### Novidades
+- `iniciar_iris.bat` + `iniciar_iris_oculto.vbs` + `criar_atalho_desktop.vbs` (mesmo padrão de inicialização sem console do Project-ARGUS).

@@ -8,6 +8,11 @@ venv/
 build/
 dist/
 
+# Segredos (nunca commitar - repo público)
+.env
+.env.*
+!.env.example
+
 # Dados gerados em runtime (config real do usuário - nunca commitado)
 data/*.json
 !data/menu_radial_config.example.json
