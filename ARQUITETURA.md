@@ -48,7 +48,7 @@ menu_radial_qt.py` antes de qualquer porte. Cada um virou uma classe
 | 1 | `_abrir_funcao_gaia` - chamada Python DIRETA em `PainelQt.instancia_atual` (só funciona no MESMO processo) | ⚙️ Funções da Gaia | `FuncoesGaiaProvider` | Stub |
 | 2 | `_chamar_overlay`/`_ativar_animacao`/`_reagir` - API HTTP local (porta 8765) + `VTubeStudioClient` (websocket direto) | 🖥️ Avatar (Overlay) / 🎭 Animações do VTube Studio | `AvatarOverlayProvider` / `AnimacoesVTSProvider` | Overlay **funcional**; Animações stub |
 | 3 | `_adicionar_anime_da_area_de_transferencia`/`_assistir_anime_por_titulo` - `anime_tracker` (scraping + qBittorrent) | 🎬 Anime Tracker | `AnimeTrackerProvider` | Stub |
-| 4 | `brain_store.obter_automacao_apps_habilitada`/`obter_anime_pasta_downloads` - 2 flags lidas do cérebro central da GAIA (~4786 linhas) só pra isso | (kill-switch de automação, sem categoria própria) | vira config do CORE (`radial_menu.obter_automacao_apps_habilitada`) | Migrado pro core, resolvido |
+| 4 | `brain_store.obter_automacao_apps_habilitada`/`obter_anime_pasta_downloads` - 2 flags lidas do cérebro central da GAIA (~4786 linhas) só pra isso | (kill-switch de automação, sem categoria própria) | `obter_anime_pasta_downloads` fica pendente no plugin (Anime Tracker); o kill-switch foi removido | Removido do core (2026-08-15) |
 
 O ponto #2 virou DUAS categorias porque, na origem, elas usam mecanismos
 diferentes: Avatar Overlay fala HTTP (fácil de reaproveitar de outro
@@ -57,13 +57,16 @@ via um cliente Python que só existe dentro do processo da GAIA (não dá pra
 importar de outro pacote) - ver `plugins/iris_plugin_gaia/TODO.md` pro que
 falta pra destravar isso.
 
-O ponto #4 é o único que não virou plugin - "automação de apps
-ligada/desligada" é um conceito 100% genérico de launcher (nada específico
-de GAIA), então virou uma flag própria do core
-(`iris/core/radial_menu.py::obter_automacao_apps_habilitada`), sem nenhuma
-dependência de `brain_store`. `obter_anime_pasta_downloads` (a outra metade
-do ponto #4) é específico do Anime Tracker - fica pendente junto com esse
-stub.
+O ponto #4 é o único que não virou plugin. "Automação de apps
+ligada/desligada" primeiro virou uma flag própria do core (sem depender de
+`brain_store`), mas foi **removida por completo em seguida** (2026-08-15,
+decisão do usuário) - o flag original na GAIA é o kill-switch que impede a
+LLM/agente de abrir/fechar programas sozinha (via `<APP:abrir:alvo>`,
+proteção contra ação autônoma indesejada); reaproveitar essa mesma trava pro
+clique manual num favorito do popup não fazia sentido no IRIS (o clique já
+é intencional, não existe "IA decidindo sozinha" pra proteger num launcher
+sem LLM). `obter_anime_pasta_downloads` (a outra metade do ponto #4) é
+específico do Anime Tracker - continua pendente junto com esse stub.
 
 ## Sistema de plugins
 

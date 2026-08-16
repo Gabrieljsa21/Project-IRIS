@@ -7,7 +7,7 @@ puro, sem nenhuma dependência de Qt) - a renderização do popup mora em
 `iris/core/app_launcher.py`.
 
 Este é o schema do CORE do IRIS - só guarda dado de "launcher" (favoritos,
-categorias, pastas, recentes, apelidos, ícones, uso, limites, automação).
+categorias, pastas, recentes, apelidos, ícones, uso, limites).
 Dado específico de um PLUGIN (ex.: reações da Gala, disparadas pelo plugin
 opcional da GAIA) fica em arquivo/namespace separado, nunca aqui - ver
 `plugins/iris_plugin_gaia/`.
@@ -27,7 +27,6 @@ Esquema (data/menu_radial_config.json):
       "limite_por_camada_favoritos": 8,
       "limite_por_camada_subitens": 8,
       "ranking_automatico_ativo": false,
-      "automacao_apps_habilitada": true,
       "apelidos": {},
       "icones_customizados": {}
     }
@@ -93,7 +92,6 @@ def _estrutura_padrao():
         "limite_por_camada_favoritos": LIMITE_POR_CAMADA_PADRAO,
         "limite_por_camada_subitens": LIMITE_POR_CAMADA_PADRAO,
         "ranking_automatico_ativo": False,
-        "automacao_apps_habilitada": True,
         "apelidos": {},
         "icones_customizados": {},
     }
@@ -556,18 +554,3 @@ def salvar_limite_por_camada_subitens(limite):
     dados["limite_por_camada_subitens"] = max(3, int(limite))
     _salvar(dados)
 
-
-# ---------- Automação (kill-switch genérico) ----------
-# Substitui `brain_store.obter_automacao_apps_habilitada()` da GAIA (2026-08,
-# ver ARQUITETURA.md) - flag própria do core, sem nenhuma dependência
-# externa: liga/desliga o LANÇAMENTO de apps/pastas pelo popup, sem precisar
-# desregistrar o hotkey nem fechar o processo.
-
-def obter_automacao_apps_habilitada():
-    return _carregar().get("automacao_apps_habilitada", True)
-
-
-def salvar_automacao_apps_habilitada(habilitada):
-    dados = _carregar()
-    dados["automacao_apps_habilitada"] = bool(habilitada)
-    _salvar(dados)

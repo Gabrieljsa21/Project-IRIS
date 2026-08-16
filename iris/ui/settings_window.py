@@ -15,7 +15,7 @@ import iris.core.app_launcher as app_launcher_mod
 import iris.core.radial_menu as radial_menu
 from iris.plugins import registry as plugin_registry
 from iris.ui.qt_widgets import (
-    IRIS_ACCENT, TEXT_COLOR,
+    GAIA_GOLD, TEXT_COLOR,
     ModalBase, Switch, criar_botao, criar_botao_pequeno, criar_checkbox,
     criar_descricao, criar_dropdown, criar_frame_item, criar_lineedit,
     criar_scroll_area, criar_spinbox, criar_tabwidget, criar_titulo_secao,
@@ -211,7 +211,7 @@ class JanelaConfiguracoes(ModalBase):
             texto = f"{dados.get('icone', '📁')} {nome} ({len(dados.get('itens', []))} itens)"
             linha.addWidget(_LabelSimples(texto), stretch=1)
 
-            botao_editar = criar_botao_pequeno("✎", IRIS_ACCENT)
+            botao_editar = criar_botao_pequeno("✎", GAIA_GOLD)
             botao_editar.clicked.connect(lambda _c=False, n=nome: self._carregar_categoria_para_edicao(n))
             linha.addWidget(botao_editar)
 
@@ -412,12 +412,6 @@ class JanelaConfiguracoes(ModalBase):
         layout = QVBoxLayout(widget)
         layout.setAlignment(Qt.AlignTop)
         layout.setSpacing(14)
-
-        switch_automacao = Switch("Automação de apps ligada", "Automação de apps desligada",
-                                   marcado=radial_menu.obter_automacao_apps_habilitada())
-        switch_automacao.stateChanged.connect(lambda _e, s=switch_automacao: radial_menu.salvar_automacao_apps_habilitada(s.isChecked()))
-        layout.addWidget(switch_automacao)
-        layout.addWidget(criar_descricao("Kill-switch geral - desligado, o popup não abre nenhum app/pasta (útil pra travar o launcher sem desregistrar o atalho)."))
 
         switch_ranking = Switch("Ranking automático ligado", "Ranking automático desligado",
                                  marcado=radial_menu.obter_ranking_automatico_ativo())
