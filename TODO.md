@@ -1,18 +1,5 @@
 # TODO - Project-IRIS
 
-## Pendências cross-repo (dependem de mudanças no lado da GAIA)
-
-- **Endpoint/IPC pra "Funções da Gaia" e "Anime Tracker" ainda não existe do
-  lado da GAIA** - o plugin `plugins/iris_plugin_gaia/` já tem as classes
-  `FuncoesGaiaProvider`/`AnimeTrackerProvider` prontas como stub
-  (`esta_disponivel()` sempre `False`), mas fazer as categorias aparecerem
-  de verdade no popup exige trabalho no repo `Project G.A.I.A` (expor um
-  endpoint HTTP ou outro IPC equivalente) - ver detalhe completo, endpoint
-  por endpoint, em `plugins/iris_plugin_gaia/TODO.md`. Isso é trabalho no
-  OUTRO repo, não algo pra resolver aqui.
-- **"Animações do VTube Studio"** - mesma categoria de pendência (endpoint
-  faltando do lado da GAIA), ver `plugins/iris_plugin_gaia/TODO.md`.
-
 ## Pendências do core (podem ser resolvidas só neste repo)
 
 - Sem testes automatizados ainda - a extração foi validada só por
