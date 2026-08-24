@@ -984,6 +984,19 @@ class RadialMenuQt(QWidget):
                         icone = pixmap
                     else:
                         icone = ICONE_PADRAO if categoria_pai is None else "•"
+        # 🔥 Ícone dinâmico do PRÓPRIO provider (2026-08-24, ex.: capa de anime
+        # do plugin MOIRAI) - vale só dentro de uma categoria (nunca no anel de
+        # favoritos), e vence o emoji do rótulo, mas ainda perde pro ícone
+        # customizado manual do usuário logo abaixo (mesma precedência de
+        # sempre: manual > automático > emoji/padrão).
+        if categoria_pai is not None:
+            provider = plugin_registry.provider_por_categoria(categoria_pai)
+            if provider is not None:
+                caminho_icone_provider = provider.icone_para_subitem(rotulo)
+                if caminho_icone_provider:
+                    pixmap_provider = _carregar_pixmap_icone(caminho_icone_provider)
+                    if pixmap_provider is not None:
+                        icone = pixmap_provider
         # Ícone customizado sempre GANHA de qualquer resolução padrão acima
         # (fixo, real da Steam, ou de categoria), mas só muda a EXIBIÇÃO - a
         # identidade real (`rotulo`) continua intacta.

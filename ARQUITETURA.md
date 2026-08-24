@@ -33,6 +33,14 @@ e o `AnimeTrackerProvider` saiu de `iris_plugin_gaia` pra um pacote novo,
 mudou - ver `TODO.md` de cada pacote). `obter_anime_pasta_downloads` (pasta
 de downloads configurável) continua pendente, herdado no pacote novo.
 
+**Anime Tracker: só "Para assistir" + capa como ícone (2026-08-24, mesmo
+dia, pedido do usuário)** - a lista de subitens passou a vir de `GET
+/anime/para_assistir` (só quem já tem episódio baixado, com `chave`/
+`capa_url` junto), não mais `GET /anime/tenho_interesse` (que listava TODO
+rastreado, inclusive sem nada baixado ainda - clique morto). Motivou o novo
+método opcional `icone_para_subitem` em `ActionProvider` (ver seção "Sistema
+de plugins" abaixo) - primeiro provider a usá-lo de verdade.
+
 **Guarda de instância única (2026-08-23)** - `iris/main.py::
 _garantir_instancia_unica` reserva a porta 8767 local só pra si (mesmo
 padrão de `Project G.A.I.A/assistant/run.py::_garantir_instancia_unica`,
@@ -85,7 +93,8 @@ um servidor HTTP NOVO, leve, sempre ativo dentro do processo principal
 (`Project G.A.I.A/assistant/integrations/iris_bridge.py`, porta 8766) -
 `GET /funcoes` + `POST /funcao` (corpo `{"rotulo": ...}`, evita URL-encoding
 de emoji) pra Funções da Gaia; `GET /anime/tenho_interesse` + `POST /anime/
-adicionar` + `POST /anime/assistir/<titulo>` pro Anime Tracker.
+adicionar` + `POST /anime/assistir/<titulo>` pro Anime Tracker (histórico -
+Anime Tracker mudou de dono/porta/rotas 3 dias depois, ver nota acima).
 
 O ponto #4 é o único que não virou plugin. "Automação de apps
 ligada/desligada" primeiro virou uma flag própria do core (sem depender de
@@ -102,9 +111,13 @@ específico do Anime Tracker - continua pendente junto com esse stub.
 
 - **`iris/plugins/base.py::ActionProvider`** - interface mínima:
   `id`, `rotulo_categoria`, `esta_disponivel()`, `listar_subitens()`,
-  `executar(item)`, `subitens_favoritaveis()` (default `False`). O popup
-  (`iris/ui/menu_radial_qt.py`) só conhece essa interface - nunca importa um
-  plugin específico.
+  `executar(item)`, `subitens_favoritaveis()` (default `False`),
+  `icone_para_subitem(item)` (default `None`, 2026-08-24 - caminho de uma
+  imagem própria pra UM subitem específico, ex.: capa de anime do
+  `iris_plugin_moirai`; chamado a cada repaint do popup, então precisa
+  devolver algo já resolvido de antemão, nunca fazer rede/IO pesado ali).
+  O popup (`iris/ui/menu_radial_qt.py`) só conhece essa interface - nunca
+  importa um plugin específico.
 - **`iris/plugins/registry.py`** - `registrar_provider`/`providers_disponiveis`/
   `provider_por_categoria`, populado por `iris/main.py` no boot (tenta
   `importlib.import_module("iris_plugin_gaia")` + chama `registrar()`; falha

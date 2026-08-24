@@ -49,3 +49,14 @@ class ActionProvider(ABC):
         categorias de AÇÃO (ex.: "Funções da Gaia", "Avatar Overlay"), onde
         cada subitem é um comando, não um app/pasta lançável sozinho."""
         return False
+
+    def icone_para_subitem(self, item: str):
+        """Caminho de um arquivo de imagem pra usar como ícone de UM subitem
+        específico (ex.: capa de um anime, já baixada/cacheada em disco pelo
+        próprio provider) - None (padrão) deixa o popup usar o emoji do
+        rótulo, igual sempre foi. Chamado a CADA repaint do popup (o mesmo
+        ritmo de `_carregar_pixmap_icone` em `iris/ui/menu_radial_qt.py`, que
+        já cacheia o QPixmap por caminho) - nunca deve fazer rede/IO pesado
+        aqui, só devolver um caminho já resolvido de antemão (em
+        `listar_subitens`, por exemplo)."""
+        return None
