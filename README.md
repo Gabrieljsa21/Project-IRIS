@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo_iris.png" alt="Iris" width="180">
+</p>
+
 # Project-IRIS
 
 Launcher radial pra Windows - um popup circular, acionado por um hotkey
