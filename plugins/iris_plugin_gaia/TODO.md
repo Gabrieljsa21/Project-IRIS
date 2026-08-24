@@ -13,46 +13,30 @@ falha e `iris/main.py` simplesmente ignora o plugin (nunca derruba o core).
   8765), sem nenhuma mudança do lado dela. `esta_disponivel()` faz um TCP
   connect na porta (sem chamar rota nenhuma) pra decidir se a categoria
   aparece no popup agora.
+- **Animações do VTube Studio** (`AnimacoesVTSProvider`, 2026-08-21) - usa os
+  2 endpoints novos no MESMO servidor do overlay (porta 8765): `GET /vts/
+  expressoes` (lista real, via `VTubeStudioClient.listar_expressoes()`) e
+  `POST /vts/expressao/<nome>` (ativa, via `ativar_expressao_manual`).
+- **Funções da Gaia** (`FuncoesGaiaProvider`, 2026-08-21) - usa o servidor
+  HTTP novo do processo principal da GAIA (`integrations/iris_bridge.py`,
+  porta 8766, sempre ativo): `GET /funcoes` lista os rótulos, `POST /funcao`
+  (corpo `{"rotulo": ...}`) chama o método correspondente em
+  `PainelQt.instancia_atual`.
+- **Anime Tracker** (`AnimeTrackerProvider`, 2026-08-21) - mesmo servidor da
+  porta 8766: `GET /anime/tenho_interesse` lista os títulos rastreados,
+  `POST /anime/adicionar` (corpo `{"url": ...}`, link já copiado - mesmo
+  fluxo do Menu Radial original da GAIA) adiciona um anime novo, `POST
+  /anime/assistir/<titulo>` abre o próximo episódio baixado.
 
-## Stubs - pendente de trabalho do LADO DA GAIA (cross-repo, fora do escopo
-desta extração)
+## Pendente
 
-Os 3 providers abaixo estão implementados como classe (`ActionProvider`
-válido, registrado normalmente), mas `esta_disponivel()` sempre devolve
-`False` - a categoria nunca aparece no popup até o trabalho descrito abaixo
-ser feito no repo `Project G.A.I.A`:
-
-1. **Animações do VTube Studio** (`AnimacoesVTSProvider`) - a GAIA fala com o
-   VTube Studio via `integrations.vtubestudio.vtube_studio_client.
-   VTubeStudioClient` (websocket direto, autenticação própria do VTS) - esse
-   módulo mora dentro do processo da GAIA, não dá pra importar de outro
-   processo/pacote. **Precisa**: a GAIA expor um endpoint HTTP (ex.: no mesmo
-   servidor do overlay, porta 8765) tipo `GET /vts/expressoes` (lista os
-   arquivos `.exp3.json` disponíveis) e `POST /vts/expressao/<nome>` (ativa
-   uma expressão) - depois disso, este provider vira uma cópia quase 1:1 do
-   `AvatarOverlayProvider`.
-
-2. **Funções da Gaia** (`FuncoesGaiaProvider`) - o original
-   (`_abrir_funcao_gaia`, `menu_radial_qt.py` da GAIA) fazia uma chamada
-   Python DIRETA em `PainelQt.instancia_atual` do MESMO processo (abrir um
-   modal do Painel - Discord, Chaves, Relógio, Personas, Vozes,
-   Notificações, Menu Radial, Animes). Rodando o IRIS num processo separado,
-   isso é estruturalmente impossível sem algum IPC novo. **Precisa**: decidir
-   um mecanismo (endpoint HTTP que dispara `metodo()` no Painel já rodando,
-   named pipe, ou simplesmente aceitar que "Funções da Gaia" só abre modais
-   que fazem sentido abrir remotamente) antes de implementar de verdade.
-
-3. **Anime Tracker** (`AnimeTrackerProvider`) - o original
-   (`_adicionar_anime_da_area_de_transferencia`/`_assistir_anime_por_titulo`)
-   fala direto com `features.anime_tracker.anime_tracker` (scraping de sites
-   de fansub + integração com qBittorrent), sem nenhuma API HTTP hoje.
-   **Precisa**: expor pelo menos `GET /anime/tenho_interesse` (lista de
-   títulos) + `POST /anime/adicionar` (link copiado) + `POST /anime/assistir/
-   <chave>` do lado da GAIA antes de portar a lógica de verdade pra cá.
-
-Nenhum dos 3 acima deve ser "resolvido" só fingindo disponibilidade (ex.:
-sempre `True` sem endpoint nenhum por trás) - a categoria simplesmente não
-aparece até o endpoint existir de verdade, evitando um clique morto no popup.
+- **Pasta de downloads configurável** (`obter_anime_pasta_downloads`,
+  `brain_store.py` da GAIA) - o Menu Radial original tinha um item "📁 Abrir
+  pasta de downloads de animes" que lia essa configuração; `AnimeTrackerProvider`
+  ainda não expõe isso (precisaria de mais um endpoint `GET /anime/pasta_downloads`
+  do lado da GAIA, ou aceitar que esse item específico não faz sentido fora
+  do processo local dela). Baixa prioridade - não bloqueia o resto do
+  provider.
 
 ## Fora de escopo mesmo depois dos endpoints acima
 

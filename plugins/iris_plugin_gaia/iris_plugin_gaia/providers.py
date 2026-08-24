@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
-"""Os 4 `ActionProvider` que conectam o IRIS à GAIA. Ver `TODO.md` deste
-pacote pro estado real de cada um - só `AvatarOverlayProvider` está
-totalmente funcional hoje; os outros 3 são STUBS deliberados (documentados,
-não escondidos) porque dependem de um endpoint/IPC do lado da GAIA que ainda
-não existe (trabalho cross-repo, fora do escopo desta extração)."""
+"""Os 4 `ActionProvider` que conectam o IRIS à GAIA - todos funcionais hoje,
+ver `TODO.md` deste pacote pro detalhe de cada um e pro que ainda falta
+(pasta de downloads configurável do Anime Tracker, baixa prioridade)."""
 
+import json
 import os
 import socket
 import threading
+import urllib.parse
 import urllib.request
+
+from PySide6.QtGui import QGuiApplication
 
 from iris.plugins.base import ActionProvider
 
@@ -17,6 +19,14 @@ from iris.plugins.base import ActionProvider
 # Sobrescrevível via variável de ambiente pra quem roda a GAIA numa porta
 # diferente.
 URL_BASE_OVERLAY = os.environ.get("IRIS_GAIA_OVERLAY_URL", "http://127.0.0.1:8765")
+
+# Servidor novo (2026-08-21) SÓ pra "Funções da Gaia"/"Anime Tracker" - roda
+# no PROCESSO PRINCIPAL da GAIA (`integrations/iris_bridge.py`), sempre
+# ativo, diferente do 8765 acima (que só sobe se o Avatar Virtual estiver
+# ligado). Ver `TODO.md` deste pacote.
+URL_BASE_BRIDGE = os.environ.get("IRIS_GAIA_BRIDGE_URL", "http://127.0.0.1:8766")
+
+_ITEM_ACAO_ADICIONAR_ANIME = "➕ Adicionar Anime"
 
 # Mesmo mapa rótulo -> rota de `Project G.A.I.A/assistant/ui/menu_radial_qt.py`
 # (`_ROTULO_PARA_ROTA_OVERLAY`) - as rotas em si não mudam entre GAIA e IRIS,
@@ -77,59 +87,135 @@ class AvatarOverlayProvider(ActionProvider):
 
 
 class AnimacoesVTSProvider(ActionProvider):
-    """STUB - ver `TODO.md` deste pacote. A GAIA fala com o VTube Studio via
+    """FUNCIONAL (2026-08-21) - a GAIA fala com o VTube Studio via
     `integrations.vtubestudio.vtube_studio_client.VTubeStudioClient`
-    (websocket direto), não pela API HTTP do overlay - esse módulo mora no
-    processo da GAIA, não é instalável separadamente por este plugin. Ponto
-    de acoplamento #2 da extração original (`_ativar_animacao`/
+    (websocket direto, processo da GAIA), então este provider passa pelos 2
+    endpoints novos no MESMO servidor do overlay (porta 8765, `vtuber_overlay.
+    py`): `GET /vts/expressoes` (lista real) e `POST /vts/expressao/<nome>`
+    (ativa). Ponto de acoplamento #2 da extração original (`_ativar_animacao`/
     `_buscar_expressoes_vts`)."""
 
     id = "gaia_animacoes_vts"
     rotulo_categoria = "🎭 Animações do VTube Studio"
 
+    def __init__(self):
+        self._rotulo_para_arquivo = {}
+
     def esta_disponivel(self):
-        return False  # sempre indisponível até existir um endpoint HTTP do lado da GAIA - ver TODO.md
+        return _porta_responde(URL_BASE_OVERLAY)
 
     def listar_subitens(self):
-        return ["ℹ️ Ainda não implementado - ver TODO.md deste plugin"]
+        try:
+            with urllib.request.urlopen(URL_BASE_OVERLAY + "/vts/expressoes", timeout=2) as resp:
+                arquivos = json.loads(resp.read())
+        except Exception:
+            arquivos = []
+        if not arquivos:
+            return ["⏳ VTube Studio não conectado"]
+        self._rotulo_para_arquivo = {
+            f"🎭 {a[:-len('.exp3.json')] if a.endswith('.exp3.json') else a}": a
+            for a in arquivos
+        }
+        return list(self._rotulo_para_arquivo.keys())
 
     def executar(self, item):
-        return
+        arquivo = self._rotulo_para_arquivo.get(item)
+        if not arquivo:
+            return
+
+        def _chamar():
+            try:
+                rota = "/vts/expressao/" + urllib.parse.quote(arquivo, safe="")
+                urllib.request.urlopen(urllib.request.Request(URL_BASE_OVERLAY + rota, method="POST"), timeout=2)
+            except Exception:
+                print(" [SISTEMA] IRIS (plugin GAIA): não consegui ativar a expressão - confira se a GAIA está rodando com o overlay ligado.")
+        threading.Thread(target=_chamar, daemon=True).start()
 
 
 class FuncoesGaiaProvider(ActionProvider):
-    """STUB - ver `TODO.md` deste pacote. O original (`_abrir_funcao_gaia`)
-    fazia uma chamada Python DIRETA em `PainelQt.instancia_atual` do MESMO
-    processo - o IRIS roda num processo separado, então isso nunca funciona
-    sem algum IPC novo do lado da GAIA (endpoint HTTP, named pipe, etc)."""
+    """FUNCIONAL (2026-08-21) - o original (`_abrir_funcao_gaia`) fazia uma
+    chamada Python DIRETA em `PainelQt.instancia_atual` do MESMO processo;
+    como o IRIS roda separado, isso agora passa pelo servidor HTTP novo do
+    processo principal da GAIA (`integrations/iris_bridge.py`, porta 8766,
+    sempre ativo - diferente do 8765 do overlay)."""
 
     id = "gaia_funcoes_gaia"
     rotulo_categoria = "⚙️ Funções da Gaia"
 
     def esta_disponivel(self):
-        return False  # sempre indisponível até existir IPC do lado da GAIA - ver TODO.md
+        return _porta_responde(URL_BASE_BRIDGE)
 
     def listar_subitens(self):
-        return ["ℹ️ Ainda não implementado - ver TODO.md deste plugin"]
+        try:
+            with urllib.request.urlopen(URL_BASE_BRIDGE + "/funcoes", timeout=2) as resp:
+                return json.loads(resp.read())
+        except Exception:
+            return []
 
     def executar(self, item):
-        return
+        def _chamar():
+            try:
+                corpo = json.dumps({"rotulo": item}).encode("utf-8")
+                req = urllib.request.Request(
+                    URL_BASE_BRIDGE + "/funcao", data=corpo, method="POST",
+                    headers={"Content-Type": "application/json"},
+                )
+                urllib.request.urlopen(req, timeout=2)
+            except Exception:
+                print(" [SISTEMA] IRIS (plugin GAIA): não consegui abrir a função - confira se a GAIA está rodando.")
+        threading.Thread(target=_chamar, daemon=True).start()
 
 
 class AnimeTrackerProvider(ActionProvider):
-    """STUB - ver `TODO.md` deste pacote. O original (`_adicionar_anime_da_
-    area_de_transferencia`/`_assistir_anime_por_titulo`) fala direto com
-    `features.anime_tracker.anime_tracker` (scraping + qBittorrent), uma
-    feature de produto da GAIA sem API HTTP nenhuma hoje."""
+    """FUNCIONAL (2026-08-21) - o original (`_adicionar_anime_da_area_de_
+    transferencia`/`_assistir_anime_por_titulo`) fala direto com
+    `features.anime_tracker.anime_tracker` (scraping + qBittorrent, sem Qt);
+    passa pelo mesmo servidor novo do `FuncoesGaiaProvider` (porta 8766) -
+    "adicionar" usa o link já copiado, igual o Menu Radial original da
+    GAIA fazia."""
 
     id = "gaia_anime_tracker"
     rotulo_categoria = "🎬 Anime Tracker"
 
     def esta_disponivel(self):
-        return False  # sempre indisponível até existir endpoint/IPC do lado da GAIA - ver TODO.md
+        return _porta_responde(URL_BASE_BRIDGE)
 
     def listar_subitens(self):
-        return ["ℹ️ Ainda não implementado - ver TODO.md deste plugin"]
+        try:
+            with urllib.request.urlopen(URL_BASE_BRIDGE + "/anime/tenho_interesse", timeout=2) as resp:
+                titulos = json.loads(resp.read())
+        except Exception:
+            titulos = []
+        itens = [_ITEM_ACAO_ADICIONAR_ANIME]
+        itens += [f"🎬 {t}" for t in titulos] if titulos else ["ℹ️ Nenhum anime rastreado ainda"]
+        return itens
 
     def executar(self, item):
-        return
+        if item == _ITEM_ACAO_ADICIONAR_ANIME:
+            link = QGuiApplication.clipboard().text().strip()
+            if not link.lower().startswith(("http://", "https://")):
+                print(" [SISTEMA] IRIS (plugin GAIA): copie o link da página do anime antes de usar 'Adicionar Anime'.")
+                return
+
+            def _adicionar():
+                try:
+                    corpo = json.dumps({"url": link}).encode("utf-8")
+                    req = urllib.request.Request(
+                        URL_BASE_BRIDGE + "/anime/adicionar", data=corpo, method="POST",
+                        headers={"Content-Type": "application/json"},
+                    )
+                    urllib.request.urlopen(req, timeout=2)
+                except Exception:
+                    print(" [SISTEMA] IRIS (plugin GAIA): não consegui adicionar o anime - confira se a GAIA está rodando.")
+            threading.Thread(target=_adicionar, daemon=True).start()
+            return
+
+        titulo = item[len("🎬 "):] if item.startswith("🎬 ") else item
+
+        def _assistir():
+            try:
+                rota = "/anime/assistir/" + urllib.parse.quote(titulo, safe="")
+                urllib.request.urlopen(urllib.request.Request(URL_BASE_BRIDGE + rota, method="POST"), timeout=2)
+            except Exception:
+                print(" [SISTEMA] IRIS (plugin GAIA): não consegui abrir o episódio - confira se a GAIA está rodando.")
+        threading.Thread(target=_assistir, daemon=True).start()
