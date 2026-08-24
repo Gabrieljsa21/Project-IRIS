@@ -19,6 +19,7 @@ receptor moram em threads diferentes) - mesmo padrão documentado em
 nada de lá)."""
 import importlib
 import os
+import socket
 import sys
 
 import keyboard
@@ -34,6 +35,30 @@ HOTKEY_MENU_RADIAL = "ctrl+alt+space"
 # import direto (`iris_plugin_gaia`) aqui em cima, de propósito: o core nunca
 # pode falhar por causa de um plugin ausente/quebrado.
 _PLUGINS_OPCIONAIS = ["iris_plugin_gaia"]
+
+# 🔥 Instância única (2026-08-23) - mesmo padrão de `Project G.A.I.A/assistant/
+# run.py::_garantir_instancia_unica` (porta 8022 lá, portado aqui de forma
+# independente, sem importar nada de lá): reservar uma porta TCP local só
+# pra esta instância - se já estiver ocupada, outro IRIS já está rodando.
+# Ganhou importância real com a GAIA agora lançando o IRIS sozinha
+# (`integrations/iris_bridge.py::garantir_iris_rodando`) - sem essa guarda,
+# rodar `-m iris.main` uma segunda vez (manual ou numa corrida rara com a
+# GAIA) duplicava processo + ícone de bandeja + hotkey.
+PORTA_INSTANCIA_UNICA = 8767
+_socket_instancia_unica = None
+
+
+def _garantir_instancia_unica():
+    global _socket_instancia_unica
+    _socket_instancia_unica = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        _socket_instancia_unica.bind(("127.0.0.1", PORTA_INSTANCIA_UNICA))
+    except OSError:
+        print(
+            " [SISTEMA] Já existe uma instância do IRIS rodando "
+            f"(porta {PORTA_INSTANCIA_UNICA} ocupada) - encerrando esta pra não rodar em duplicidade."
+        )
+        sys.exit(1)
 
 
 class IrisApp(QObject):
@@ -113,6 +138,7 @@ def _carregar_plugins_opcionais():
 
 
 def main():
+    _garantir_instancia_unica()
     os.makedirs("data", exist_ok=True)
 
     app = QApplication(sys.argv)

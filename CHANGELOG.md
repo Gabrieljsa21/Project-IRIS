@@ -12,6 +12,8 @@ foi documentada retroativamente; o histórico versionado começa em `0.1.0`.
 
 ### Novidades
 - Botão "Instalar integração com a GAIA" (Configurações → Preferências → Plugins), quando nenhum plugin está registrado - instala `plugins/iris_plugin_gaia` via `uv pip install -e` sem precisar de terminal.
+- `AnimacoesVTSProvider`/`FuncoesGaiaProvider`/`AnimeTrackerProvider` (plugin `iris_plugin_gaia`) saem do estado de stub - passam a chamar endpoints HTTP novos do lado da GAIA (porta 8765 do overlay pra Animações; porta 8766 nova, sempre ativa, pra Funções da Gaia e Anime Tracker). Ver `ARQUITETURA.md` e `plugins/iris_plugin_gaia/TODO.md`.
+- Guarda de instância única (porta 8767 local, mesmo padrão de `_garantir_instancia_unica` da GAIA) - a GAIA agora pode lançar o IRIS sozinha (Menu Radial migrado pra consumir o IRIS em vez de manter cópia própria), então rodar duas instâncias por engano (manual + lançada pela GAIA) passou a ser um risco real, não só teórico.
 
 ### Alterado
 - Ícone da bandeja do sistema (`assets/icones/menu_radial_botao.png`) trocado pela arte oficial nova do IRIS.

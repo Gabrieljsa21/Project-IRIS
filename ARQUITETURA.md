@@ -21,10 +21,24 @@ app launcher genérico (apps fixos + escaneados + manuais, jogos da Steam,
 atalhos do Menu Iniciar), monitor de hardware (CPU/RAM/GPU), sistema de
 plugins (interface + registry) e uma tela de Configurações própria (a GAIA
 nunca teve uma standalone - sempre dependeu do Painel dela, que não foi
-portado). Do plugin opcional da GAIA, só **Avatar (Overlay)** está
-funcional de verdade; os outros 3 (Funções da Gaia, Animações do VTube
-Studio, Anime Tracker) são stubs documentados - ver seção própria abaixo e
-`plugins/iris_plugin_gaia/TODO.md`.
+portado). Os 4 providers do plugin opcional da GAIA estão **todos
+funcionais** (2026-08-21, ver seção própria abaixo) - o trabalho do lado da
+GAIA que faltava (endpoints HTTP novos pra Funções da Gaia/Animações do
+VTube Studio/Anime Tracker) foi concluído; só `obter_anime_pasta_downloads`
+(pasta de downloads configurável, dentro do Anime Tracker) continua
+pendente, ver `plugins/iris_plugin_gaia/TODO.md`.
+
+**Guarda de instância única (2026-08-23)** - `iris/main.py::
+_garantir_instancia_unica` reserva a porta 8767 local só pra si (mesmo
+padrão de `Project G.A.I.A/assistant/run.py::_garantir_instancia_unica`,
+porta 8022 - portado aqui de forma independente, sem importar nada de lá);
+se a porta já estiver ocupada, sai na hora com código 1. Passou a importar
+de verdade quando a GAIA migrou o próprio Menu Radial pra CONSUMIR o IRIS
+(`integrations/iris_bridge.py::garantir_iris_rodando`, checa por processo
+via `psutil` e lança `pythonw.exe -m iris.main` se não achar) - sem a
+guarda, uma corrida entre essa checagem e um lançamento manual (ou dois
+apertos rápidos do hotkey antes do primeiro processo terminar de subir)
+podia duplicar processo + ícone de bandeja + hotkey.
 
 ## Por que separar
 
@@ -45,17 +59,28 @@ menu_radial_qt.py` antes de qualquer porte. Cada um virou uma classe
 
 | # | Ponto original | Categoria no popup | Provider | Estado |
 |---|---|---|---|---|
-| 1 | `_abrir_funcao_gaia` - chamada Python DIRETA em `PainelQt.instancia_atual` (só funciona no MESMO processo) | ⚙️ Funções da Gaia | `FuncoesGaiaProvider` | Stub |
-| 2 | `_chamar_overlay`/`_ativar_animacao`/`_reagir` - API HTTP local (porta 8765) + `VTubeStudioClient` (websocket direto) | 🖥️ Avatar (Overlay) / 🎭 Animações do VTube Studio | `AvatarOverlayProvider` / `AnimacoesVTSProvider` | Overlay **funcional**; Animações stub |
-| 3 | `_adicionar_anime_da_area_de_transferencia`/`_assistir_anime_por_titulo` - `anime_tracker` (scraping + qBittorrent) | 🎬 Anime Tracker | `AnimeTrackerProvider` | Stub |
+| 1 | `_abrir_funcao_gaia` - chamada Python DIRETA em `PainelQt.instancia_atual` (só funciona no MESMO processo) | ⚙️ Funções da Gaia | `FuncoesGaiaProvider` | **Funcional** (2026-08-21) |
+| 2 | `_chamar_overlay`/`_ativar_animacao`/`_reagir` - API HTTP local (porta 8765) + `VTubeStudioClient` (websocket direto) | 🖥️ Avatar (Overlay) / 🎭 Animações do VTube Studio | `AvatarOverlayProvider` / `AnimacoesVTSProvider` | **Funcional** (Animações desde 2026-08-21) |
+| 3 | `_adicionar_anime_da_area_de_transferencia`/`_assistir_anime_por_titulo` - `anime_tracker` (scraping + qBittorrent) | 🎬 Anime Tracker | `AnimeTrackerProvider` | **Funcional** (2026-08-21); pasta de downloads configurável ainda pendente |
 | 4 | `brain_store.obter_automacao_apps_habilitada`/`obter_anime_pasta_downloads` - 2 flags lidas do cérebro central da GAIA (~4786 linhas) só pra isso | (kill-switch de automação, sem categoria própria) | `obter_anime_pasta_downloads` fica pendente no plugin (Anime Tracker); o kill-switch foi removido | Removido do core (2026-08-15) |
 
 O ponto #2 virou DUAS categorias porque, na origem, elas usam mecanismos
 diferentes: Avatar Overlay fala HTTP (fácil de reaproveitar de outro
 processo, sem mudar nada do lado da GAIA); Animações fala WebSocket direto
 via um cliente Python que só existe dentro do processo da GAIA (não dá pra
-importar de outro pacote) - ver `plugins/iris_plugin_gaia/TODO.md` pro que
-falta pra destravar isso.
+importar de outro pacote) - resolvido (2026-08-21) expondo `GET /vts/
+expressoes`/`POST /vts/expressao/<nome>` no MESMO servidor HTTP do overlay
+(porta 8765), já que `VTubeStudioClient` abre seu próprio websocket a cada
+chamada e não precisa de estado compartilhado entre processos.
+
+**Funções da Gaia e Anime Tracker** dependem de estado que só existe no
+PROCESSO PRINCIPAL da GAIA (`PainelQt.instancia_atual`) - diferente do
+Avatar Overlay, que roda num subprocess próprio. Resolvido (2026-08-21) com
+um servidor HTTP NOVO, leve, sempre ativo dentro do processo principal
+(`Project G.A.I.A/assistant/integrations/iris_bridge.py`, porta 8766) -
+`GET /funcoes` + `POST /funcao` (corpo `{"rotulo": ...}`, evita URL-encoding
+de emoji) pra Funções da Gaia; `GET /anime/tenho_interesse` + `POST /anime/
+adicionar` + `POST /anime/assistir/<titulo>` pro Anime Tracker.
 
 O ponto #4 é o único que não virou plugin. "Automação de apps
 ligada/desligada" primeiro virou uma flag própria do core (sem depender de
@@ -101,8 +126,10 @@ perfis/favoritos/categorias/pastas/recentes/apelidos/ícones/uso/limites/
 automação. Nenhum dado específico de plugin (ex.: reações da Gala no VTube
 Studio, que existiam no original) fica aqui - se um plugin precisar de
 config própria no futuro, ganha arquivo/namespace separado, carregado só
-quando o plugin estiver ativo (nenhum implementado ainda, já que os 3
-providers pendentes são stubs sem estado nenhum pra guardar).
+quando o plugin estiver ativo (nenhum implementado ainda - os providers da
+GAIA guardam só estado efêmero em memória, ex.: `AnimacoesVTSProvider`
+mapeando rótulo exibido -> nome de arquivo real entre `listar_subitens()` e
+`executar()`).
 
 ## Vendorização de `qt_widgets.py`
 
