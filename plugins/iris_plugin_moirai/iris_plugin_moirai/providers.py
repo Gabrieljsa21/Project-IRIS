@@ -68,11 +68,23 @@ class AnimeTrackerProvider(ActionProvider):
                         URL_BASE_MOIRAI + "/anime/adicionar", data=corpo, method="POST",
                         headers={"Content-Type": "application/json"},
                     )
-                    # 🔥 Timeout bem maior que o padrão (2026-08-24) - esse
-                    # endpoint agora é SÍNCRONO do lado do MOIRAI (scraping +
-                    # qBittorrent, pode levar alguns segundos) - ver
-                    # `moirai/api_bridge.py`, docstring de `POST /anime/adicionar`.
-                    urllib.request.urlopen(req, timeout=30)
+                    # 🔥 Síncrono do lado do MOIRAI (scraping de verdade), por
+                    # isso um timeout bem maior que o padrão de 2s.
+                    with urllib.request.urlopen(req, timeout=30) as resp:
+                        resultado = json.loads(resp.read())
+                    chave = resultado.get("chave")
+                    if not resultado.get("erro") and chave:
+                        # 🔥 2 chamadas de propósito (2026-08-24) - o IRIS não
+                        # tem seletor de episódios (isso só existe na UI rica
+                        # do Painel da GAIA), então baixa tudo que estiver
+                        # pendente igual sempre fez, só que agora como um
+                        # passo separado (`/anime/adicionar` não baixa mais
+                        # sozinho, ver `moirai/api_bridge.py`).
+                        urllib.request.urlopen(urllib.request.Request(
+                            URL_BASE_MOIRAI + "/anime/baixar_pendentes",
+                            data=json.dumps({"chave": chave}).encode("utf-8"), method="POST",
+                            headers={"Content-Type": "application/json"},
+                        ), timeout=30)
                 except Exception:
                     print(" [SISTEMA] IRIS (plugin MOIRAI): não consegui adicionar o anime - confira se o MOIRAI está rodando.")
             threading.Thread(target=_adicionar, daemon=True).start()
