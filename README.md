@@ -42,17 +42,20 @@ navegador) - ajuste tudo pela tela de Configurações. `data/
 menu_radial_config.example.json` mostra o schema completo preenchido (sem
 nenhum dado pessoal real).
 
-## Plugin opcional da GAIA
+## Plugins opcionais
 
 Quem também roda a [GAIA](../Project%20G.A.I.A) pode instalar
 `plugins/iris_plugin_gaia/` pelo botão "Instalar integração com a GAIA"
 (Configurações → Preferências → Plugins) - ou manualmente
 (`uv pip install -e plugins/iris_plugin_gaia`) - pra ganhar categorias
-extras no popup quando ela estiver de pé. Hoje só **Avatar (Overlay)** está
-funcional de verdade (reaproveita a API HTTP já existente da GAIA);
-**Funções da Gaia**, **Animações do VTube Studio** e **Anime Tracker** são
-stubs documentados em `plugins/iris_plugin_gaia/TODO.md`, pendentes de um
-endpoint/IPC que ainda não existe do lado da GAIA.
+extras no popup quando ela estiver de pé: **Avatar (Overlay)**, **Animações
+do VTube Studio** e **Funções da Gaia**, todos funcionais hoje (ver
+`plugins/iris_plugin_gaia/README.md`).
+
+O **Anime Tracker** virou um plugin separado, `plugins/iris_plugin_moirai/`
+(2026-08-24) - fala direto com o [Project-MOIRAI](../Project-MOIRAI), não
+com a GAIA, então funciona mesmo sem ela de pé (só precisa do MOIRAI
+rodando). Ver `plugins/iris_plugin_moirai/README.md`.
 
 ## Estado atual
 
