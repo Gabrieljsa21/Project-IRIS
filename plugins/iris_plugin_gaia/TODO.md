@@ -22,21 +22,11 @@ falha e `iris/main.py` simplesmente ignora o plugin (nunca derruba o core).
   porta 8766, sempre ativo): `GET /funcoes` lista os rótulos, `POST /funcao`
   (corpo `{"rotulo": ...}`) chama o método correspondente em
   `PainelQt.instancia_atual`.
-- **Anime Tracker** (`AnimeTrackerProvider`, 2026-08-21) - mesmo servidor da
-  porta 8766: `GET /anime/tenho_interesse` lista os títulos rastreados,
-  `POST /anime/adicionar` (corpo `{"url": ...}`, link já copiado - mesmo
-  fluxo do Menu Radial original da GAIA) adiciona um anime novo, `POST
-  /anime/assistir/<titulo>` abre o próximo episódio baixado.
 
-## Pendente
-
-- **Pasta de downloads configurável** (`obter_anime_pasta_downloads`,
-  `brain_store.py` da GAIA) - o Menu Radial original tinha um item "📁 Abrir
-  pasta de downloads de animes" que lia essa configuração; `AnimeTrackerProvider`
-  ainda não expõe isso (precisaria de mais um endpoint `GET /anime/pasta_downloads`
-  do lado da GAIA, ou aceitar que esse item específico não faz sentido fora
-  do processo local dela). Baixa prioridade - não bloqueia o resto do
-  provider.
+**Anime Tracker mudou pra `plugins/iris_plugin_moirai` em 2026-08-24** - o
+Assistente de Animes deixou de ser hospedado pela GAIA (agora é processo
+próprio, Project-MOIRAI, porta 8768) - ver `TODO.md`/`providers.py` daquele
+pacote pro que era pendente aqui (segue pendente lá).
 
 ## Fora de escopo mesmo depois dos endpoints acima
 

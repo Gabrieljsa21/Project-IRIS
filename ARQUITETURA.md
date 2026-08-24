@@ -21,12 +21,17 @@ app launcher genérico (apps fixos + escaneados + manuais, jogos da Steam,
 atalhos do Menu Iniciar), monitor de hardware (CPU/RAM/GPU), sistema de
 plugins (interface + registry) e uma tela de Configurações própria (a GAIA
 nunca teve uma standalone - sempre dependeu do Painel dela, que não foi
-portado). Os 4 providers do plugin opcional da GAIA estão **todos
+portado). Os providers do plugin opcional da GAIA estão **todos
 funcionais** (2026-08-21, ver seção própria abaixo) - o trabalho do lado da
 GAIA que faltava (endpoints HTTP novos pra Funções da Gaia/Animações do
-VTube Studio/Anime Tracker) foi concluído; só `obter_anime_pasta_downloads`
-(pasta de downloads configurável, dentro do Anime Tracker) continua
-pendente, ver `plugins/iris_plugin_gaia/TODO.md`.
+VTube Studio) foi concluído.
+
+**Anime Tracker mudou de dono (2026-08-24)** - o Assistente de Animes
+deixou de ser hospedado pela GAIA (agora processo próprio, [Project-MOIRAI](../Project-MOIRAI))
+e o `AnimeTrackerProvider` saiu de `iris_plugin_gaia` pra um pacote novo,
+`plugins/iris_plugin_moirai/` (mesmo contrato HTTP de sempre, só a URL base
+mudou - ver `TODO.md` de cada pacote). `obter_anime_pasta_downloads` (pasta
+de downloads configurável) continua pendente, herdado no pacote novo.
 
 **Guarda de instância única (2026-08-23)** - `iris/main.py::
 _garantir_instancia_unica` reserva a porta 8767 local só pra si (mesmo

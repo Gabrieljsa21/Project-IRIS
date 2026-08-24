@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Os 4 `ActionProvider` que conectam o IRIS à GAIA - todos funcionais hoje,
-ver `TODO.md` deste pacote pro detalhe de cada um e pro que ainda falta
-(pasta de downloads configurável do Anime Tracker, baixa prioridade)."""
+"""Os 3 `ActionProvider` que conectam o IRIS à GAIA - todos funcionais hoje,
+ver `TODO.md` deste pacote pro detalhe de cada um. O 4º (`AnimeTrackerProvider`)
+mudou pra `iris_plugin_moirai` em 2026-08-24 (ver esse pacote/ARQUITETURA.md)."""
 
 import json
 import os
@@ -9,8 +9,6 @@ import socket
 import threading
 import urllib.parse
 import urllib.request
-
-from PySide6.QtGui import QGuiApplication
 
 from iris.plugins.base import ActionProvider
 
@@ -20,13 +18,11 @@ from iris.plugins.base import ActionProvider
 # diferente.
 URL_BASE_OVERLAY = os.environ.get("IRIS_GAIA_OVERLAY_URL", "http://127.0.0.1:8765")
 
-# Servidor novo (2026-08-21) SÓ pra "Funções da Gaia"/"Anime Tracker" - roda
-# no PROCESSO PRINCIPAL da GAIA (`integrations/iris_bridge.py`), sempre
-# ativo, diferente do 8765 acima (que só sobe se o Avatar Virtual estiver
-# ligado). Ver `TODO.md` deste pacote.
+# Servidor novo (2026-08-21) pra "Funções da Gaia" - roda no PROCESSO
+# PRINCIPAL da GAIA (`integrations/iris_bridge.py`), sempre ativo, diferente
+# do 8765 acima (que só sobe se o Avatar Virtual estiver ligado). Ver
+# `TODO.md` deste pacote.
 URL_BASE_BRIDGE = os.environ.get("IRIS_GAIA_BRIDGE_URL", "http://127.0.0.1:8766")
-
-_ITEM_ACAO_ADICIONAR_ANIME = "➕ Adicionar Anime"
 
 # Mesmo mapa rótulo -> rota de `Project G.A.I.A/assistant/ui/menu_radial_qt.py`
 # (`_ROTULO_PARA_ROTA_OVERLAY`) - as rotas em si não mudam entre GAIA e IRIS,
@@ -165,57 +161,6 @@ class FuncoesGaiaProvider(ActionProvider):
                 print(" [SISTEMA] IRIS (plugin GAIA): não consegui abrir a função - confira se a GAIA está rodando.")
         threading.Thread(target=_chamar, daemon=True).start()
 
-
-class AnimeTrackerProvider(ActionProvider):
-    """FUNCIONAL (2026-08-21) - o original (`_adicionar_anime_da_area_de_
-    transferencia`/`_assistir_anime_por_titulo`) fala direto com
-    `features.anime_tracker.anime_tracker` (scraping + qBittorrent, sem Qt);
-    passa pelo mesmo servidor novo do `FuncoesGaiaProvider` (porta 8766) -
-    "adicionar" usa o link já copiado, igual o Menu Radial original da
-    GAIA fazia."""
-
-    id = "gaia_anime_tracker"
-    rotulo_categoria = "🎬 Anime Tracker"
-
-    def esta_disponivel(self):
-        return _porta_responde(URL_BASE_BRIDGE)
-
-    def listar_subitens(self):
-        try:
-            with urllib.request.urlopen(URL_BASE_BRIDGE + "/anime/tenho_interesse", timeout=2) as resp:
-                titulos = json.loads(resp.read())
-        except Exception:
-            titulos = []
-        itens = [_ITEM_ACAO_ADICIONAR_ANIME]
-        itens += [f"🎬 {t}" for t in titulos] if titulos else ["ℹ️ Nenhum anime rastreado ainda"]
-        return itens
-
-    def executar(self, item):
-        if item == _ITEM_ACAO_ADICIONAR_ANIME:
-            link = QGuiApplication.clipboard().text().strip()
-            if not link.lower().startswith(("http://", "https://")):
-                print(" [SISTEMA] IRIS (plugin GAIA): copie o link da página do anime antes de usar 'Adicionar Anime'.")
-                return
-
-            def _adicionar():
-                try:
-                    corpo = json.dumps({"url": link}).encode("utf-8")
-                    req = urllib.request.Request(
-                        URL_BASE_BRIDGE + "/anime/adicionar", data=corpo, method="POST",
-                        headers={"Content-Type": "application/json"},
-                    )
-                    urllib.request.urlopen(req, timeout=2)
-                except Exception:
-                    print(" [SISTEMA] IRIS (plugin GAIA): não consegui adicionar o anime - confira se a GAIA está rodando.")
-            threading.Thread(target=_adicionar, daemon=True).start()
-            return
-
-        titulo = item[len("🎬 "):] if item.startswith("🎬 ") else item
-
-        def _assistir():
-            try:
-                rota = "/anime/assistir/" + urllib.parse.quote(titulo, safe="")
-                urllib.request.urlopen(urllib.request.Request(URL_BASE_BRIDGE + rota, method="POST"), timeout=2)
-            except Exception:
-                print(" [SISTEMA] IRIS (plugin GAIA): não consegui abrir o episódio - confira se a GAIA está rodando.")
-        threading.Thread(target=_assistir, daemon=True).start()
+# 🔥 `AnimeTrackerProvider` mudou pra `iris_plugin_moirai` em 2026-08-24 - o
+# Assistente de Animes deixou de ser hospedado pela GAIA (processo próprio,
+# Project-MOIRAI, porta 8768) - ver ARQUITETURA.md e o TODO.md do plugin novo.
