@@ -33,8 +33,9 @@ HOTKEY_MENU_RADIAL = "ctrl+alt+space"
 
 # Pacotes de plugin OPCIONAIS a tentar importar/registrar no boot - nenhum
 # import direto (`iris_plugin_gaia`) aqui em cima, de propósito: o core nunca
-# pode falhar por causa de um plugin ausente/quebrado.
-_PLUGINS_OPCIONAIS = ["iris_plugin_gaia"]
+# pode falhar por causa de um plugin ausente/quebrado. `iris_plugin_moirai`
+# (2026-08-24) - Assistente de Animes extraído da GAIA pro Project-MOIRAI.
+_PLUGINS_OPCIONAIS = ["iris_plugin_gaia", "iris_plugin_moirai"]
 
 # 🔥 Instância única (2026-08-23) - mesmo padrão de `Project G.A.I.A/assistant/
 # run.py::_garantir_instancia_unica` (porta 8022 lá, portado aqui de forma

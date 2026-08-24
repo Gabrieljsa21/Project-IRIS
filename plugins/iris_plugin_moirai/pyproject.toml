@@ -1,0 +1,13 @@
+[project]
+name = "iris-plugin-moirai"
+version = "0.1.0"
+description = "Plugin opcional do IRIS que conecta o popup radial ao Project-MOIRAI (animes/episódios) - só instala quem também roda o MOIRAI."
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["iris_plugin_moirai*"]
