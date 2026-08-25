@@ -1,6 +1,6 @@
 # iris-plugin-gaia
 
-Plugin do Project-IRIS que expõe funções da GAIA (Project G.A.I.A.) como
+Plugin do Project-IRIS que expõe funções da GAIA (Project GAIA) como
 categorias do Menu Radial. Instalação: instalar o pacote `iris` (raiz do
 repo) primeiro, depois este pacote no mesmo venv (`pip install -e .` na
 raiz, depois `pip install -e plugins/iris_plugin_gaia`). Sem `iris`
