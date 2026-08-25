@@ -1,6 +1,6 @@
 # iris-plugin-gaia
 
-Plugin do Project-IRIS que expõe funções da GAIA (Project GAIA) como
+Plugin do Project IRIS que expõe funções da GAIA (Project GAIA) como
 categorias do Menu Radial. Instalação: instalar o pacote `iris` (raiz do
 repo) primeiro, depois este pacote no mesmo venv (`pip install -e .` na
 raiz, depois `pip install -e plugins/iris_plugin_gaia`). Sem `iris`
@@ -27,7 +27,7 @@ plugin (nunca derruba o core).
 
 **Anime Tracker mudou pra `plugins/iris_plugin_moirai` em 2026-08-24** - o
 Assistente de Animes deixou de ser hospedado pela GAIA (agora é processo
-próprio, Project-MOIRAI, porta 8768) - ver `README.md`/`TODO.md` daquele
+próprio, Project MOIRAI, porta 8768) - ver `README.md`/`TODO.md` daquele
 pacote pro que existe/está pendente lá.
 
 Ver `TODO.md` pro que ainda falta/está fora de escopo.

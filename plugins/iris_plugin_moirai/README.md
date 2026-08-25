@@ -1,6 +1,6 @@
 # iris-plugin-moirai
 
-Plugin do Project-IRIS que expõe o Anime Tracker (Project-MOIRAI) como
+Plugin do Project IRIS que expõe o Anime Tracker (Project MOIRAI) como
 categoria do Menu Radial. Instalação: instalar o pacote `iris` (raiz do
 repo) primeiro, depois este pacote no mesmo venv (`pip install -e .` na
 raiz, depois `pip install -e plugins/iris_plugin_moirai`). Sem `iris`
@@ -11,7 +11,7 @@ o plugin (nunca derruba o core).
 ## Funcional hoje
 
 - **Anime Tracker** (`AnimeTrackerProvider`, extraído de `iris_plugin_gaia`
-  em 2026-08-24) - fala com o Project-MOIRAI (porta 8768, `IRIS_MOIRAI_URL`
+  em 2026-08-24) - fala com o Project MOIRAI (porta 8768, `IRIS_MOIRAI_URL`
   sobrescrevível via variável de ambiente): `GET /anime/para_assistir`
   lista só os títulos com pelo menos 1 episódio baixado pronto pra assistir
   (não todo "tenho_interesse" - clicar num título sem nada baixado seria um
