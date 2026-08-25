@@ -2,7 +2,7 @@
   <img src="assets/logo_iris.png" alt="Iris" width="180">
 </p>
 
-# Project-IRIS
+# Project IRIS
 
 Launcher radial pra Windows - um popup circular, acionado por um hotkey
 global, pra abrir apps, pastas, sites, atalhos e jogos da Steam sem tirar as
@@ -53,7 +53,7 @@ do VTube Studio** e **Funções da Gaia**, todos funcionais hoje (ver
 `plugins/iris_plugin_gaia/README.md`).
 
 O **Anime Tracker** virou um plugin separado, `plugins/iris_plugin_moirai/`
-(2026-08-24) - fala direto com o [Project-MOIRAI](../Project-MOIRAI), não
+(2026-08-24) - fala direto com o [Project MOIRAI](../Project-MOIRAI), não
 com a GAIA, então funciona mesmo sem ela de pé (só precisa do MOIRAI
 rodando). Ver `plugins/iris_plugin_moirai/README.md`.
 

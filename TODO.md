@@ -1,4 +1,4 @@
-# TODO - Project-IRIS
+# TODO - Project IRIS
 
 ## Pendências do core (podem ser resolvidas só neste repo)
 

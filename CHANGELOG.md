@@ -1,6 +1,6 @@
 # Changelog
 
-Histórico de alto nível do que muda no Project-IRIS, por versão. Detalhe técnico
+Histórico de alto nível do que muda no Project IRIS, por versão. Detalhe técnico
 completo de cada decisão está em `ARQUITETURA.md`.
 
 Versionamento: [Semantic Versioning](VERSIONAMENTO_CHANGELOG.md). A extração
@@ -14,7 +14,7 @@ foi documentada retroativamente; o histórico versionado começa em `0.1.0`.
 - Botão "Instalar integração com a GAIA" (Configurações → Preferências → Plugins), quando nenhum plugin está registrado - instala `plugins/iris_plugin_gaia` via `uv pip install -e` sem precisar de terminal.
 - `AnimacoesVTSProvider`/`FuncoesGaiaProvider`/`AnimeTrackerProvider` (plugin `iris_plugin_gaia`) saem do estado de stub - passam a chamar endpoints HTTP novos do lado da GAIA (porta 8765 do overlay pra Animações; porta 8766 nova, sempre ativa, pra Funções da Gaia e Anime Tracker). Ver `ARQUITETURA.md` e `plugins/iris_plugin_gaia/TODO.md`.
 - Guarda de instância única (porta 8767 local, mesmo padrão de `_garantir_instancia_unica` da GAIA) - a GAIA agora pode lançar o IRIS sozinha (Menu Radial migrado pra consumir o IRIS em vez de manter cópia própria), então rodar duas instâncias por engano (manual + lançada pela GAIA) passou a ser um risco real, não só teórico.
-- **Novo pacote `plugins/iris_plugin_moirai`** (2026-08-24) - `AnimeTrackerProvider` saiu de `iris_plugin_gaia` pra aqui, porque o Assistente de Animes deixou de ser hospedado pela GAIA (agora processo próprio, Project-MOIRAI, porta 8768). Mesmo contrato HTTP de sempre, sobrescrevível via `IRIS_MOIRAI_URL` - registrado em `iris/main.py::_PLUGINS_OPCIONAIS` junto com `iris_plugin_gaia`. Validado rodando os 2 processos juntos (IRIS + MOIRAI), provider respondendo com dados reais.
+- **Novo pacote `plugins/iris_plugin_moirai`** (2026-08-24) - `AnimeTrackerProvider` saiu de `iris_plugin_gaia` pra aqui, porque o Assistente de Animes deixou de ser hospedado pela GAIA (agora processo próprio, Project MOIRAI, porta 8768). Mesmo contrato HTTP de sempre, sobrescrevível via `IRIS_MOIRAI_URL` - registrado em `iris/main.py::_PLUGINS_OPCIONAIS` junto com `iris_plugin_gaia`. Validado rodando os 2 processos juntos (IRIS + MOIRAI), provider respondendo com dados reais.
 - **Fase 2 do MOIRAI (2026-08-24)**: `POST /anime/adicionar` do lado do MOIRAI parou de disparar o download sozinho (agora é `POST /anime/baixar_pendentes`, chamada separada) - `AnimeTrackerProvider.executar` (item "Adicionar Anime") passou a chamar os 2 endpoints em sequência, mesmo comportamento final de sempre pro usuário.
 - **Anime Tracker: só "Para assistir" + capa como ícone (2026-08-24)** - a lista de subitens passou a vir de `GET /anime/para_assistir` (só quem já tem episódio baixado, evita clique morto), e cada anime ganhou a própria capa como ícone em vez do emoji "🎬" genérico pra todo mundo - baixada 1x (via MOIRAI, cacheada localmente) em background, nunca travando a abertura do popup. Motivou o método opcional `icone_para_subitem` novo em `ActionProvider` (`iris/plugins/base.py`), disponível pra qualquer provider futuro que precise de ícone dinâmico por subitem.
 
@@ -47,4 +47,4 @@ foi documentada retroativamente; o histórico versionado começa em `0.1.0`.
 ## [0.1.0] - 2026-08-15: Inicialização sem console
 
 ### Novidades
-- `iniciar_iris.bat` + `iniciar_iris_oculto.vbs` + `criar_atalho_desktop.vbs` (mesmo padrão de inicialização sem console do Project-ARGUS).
+- `iniciar_iris.bat` + `iniciar_iris_oculto.vbs` + `criar_atalho_desktop.vbs` (mesmo padrão de inicialização sem console do Project ARGUS).

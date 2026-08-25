@@ -27,7 +27,7 @@ GAIA que faltava (endpoints HTTP novos pra Funções da Gaia/Animações do
 VTube Studio) foi concluído.
 
 **Anime Tracker mudou de dono (2026-08-24)** - o Assistente de Animes
-deixou de ser hospedado pela GAIA (agora processo próprio, [Project-MOIRAI](../Project-MOIRAI))
+deixou de ser hospedado pela GAIA (agora processo próprio, [Project MOIRAI](../Project-MOIRAI))
 e o `AnimeTrackerProvider` saiu de `iris_plugin_gaia` pra um pacote novo,
 `plugins/iris_plugin_moirai/` (mesmo contrato HTTP de sempre, só a URL base
 mudou - ver `TODO.md` de cada pacote). `obter_anime_pasta_downloads` (pasta
