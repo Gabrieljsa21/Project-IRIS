@@ -142,6 +142,9 @@ def main():
     _garantir_instancia_unica()
     os.makedirs("data", exist_ok=True)
 
+    from iris.core import radial_menu
+    radial_menu.garantir_categoria_projetos_padrao()
+
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     aplicar_estilo_global(app)

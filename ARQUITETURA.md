@@ -187,3 +187,47 @@ usou `qt_widgets.py`, na GAIA ou aqui - só a tela de Configurações usa.
   (monorepo) - decisão consciente: o plugin só faz sentido acompanhando o
   core (mesma versão de `ActionProvider`), e mora fisicamente perto do
   código que ele documenta o acoplamento com.
+
+## Categoria "Anime Tracker" renomeada pra "Watchlist" (2026-08-30)
+
+Pedido do usuário (mesmo dia dos ajustes no ERIS): "No iris,gaia e moirai,
+renomeia Anime Tracker para Watchlist". Só existia UM lugar de verdade pra
+mudar - `rotulo_categoria` do `AnimeTrackerProvider`
+(`plugins/iris_plugin_moirai/iris_plugin_moirai/providers.py`), já que essa
+é a única string vista pelo usuário (a GAIA não expõe "Anime Tracker" em
+lugar nenhum da própria UI - o modal dela sempre se chamou "🎬 Assistente de
+Animes"). `id` (`"moirai_anime_tracker"`) e o nome da classe continuam
+iguais de propósito - só o TEXTO exibido mudou, nenhum identificador interno
+precisou acompanhar.
+
+**Migração do dado já salvo** (`iris/core/radial_menu.py::_carregar`,
+`RENOMEACOES_ROTULO`) - o rótulo antigo vivia salvo em `favoritos`
+(posição no círculo) e em `uso` (contagem acumulada de cliques); sem migrar
+os 2, a fatia sumiria do popup em silêncio na próxima abertura (o rótulo
+salvo não bateria mais com o `rotulo_categoria` renomeado do provider) e o
+histórico de uso seria perdido. Aplicado automaticamente no próximo boot do
+IRIS - as menções ao nome antigo no restante deste documento (seções
+"Estado atual"/"Os 4 pontos de acoplamento extraídos" acima) descrevem o
+histórico de como a extração aconteceu EM 2026-08-24, quando o nome ainda
+era esse - não foram reescritas.
+
+## Categoria "Projects" (2026-08-30)
+
+Pedido do usuário, mesmo dia: "cria uma categoria Projects, com todos os
+projetos q temos para abri-los facilmente" - categoria de USUÁRIO comum
+(`iris/core/radial_menu.py::salvar_categoria`), não um `ActionProvider` novo
+- abrir uma pasta no Explorer não precisa de nenhuma lógica de plugin
+(HTTP/estado externo), é exatamente o mesmo mecanismo que qualquer pasta já
+favoritada usa (`_lancar`, ícone "📁"/"📂" + nome cadastrado em `pastas`, ver
+`iris/ui/menu_radial_qt.py`).
+
+`garantir_categoria_projetos_padrao()` roda 1x no boot (`iris/main.py::
+main`), semeando um atalho de pasta (`pastas`) + a categoria "Projects" +
+a entrada nos `favoritos`, um item por projeto irmão do ecossistema (ARGUS/
+ECHO/ERIS/HESTIA/IRIS/MOIRAI/PANDORA, mais "Project G.A.I.A" reaproveitando
+a pasta que já existia cadastrada) - só cria a pasta que ainda não existe
+com aquele nome, e só se o caminho realmente existir no disco (`os.path.
+isdir`). Gated por uma flag persistida (`categoria_projetos_criada_v1`) -
+diferente das migrações de formato em `_carregar` (que sempre corrigem
+shape), isso é um SEED de conteúdo uma única vez: rodar de novo depois que o
+usuário já editou/renomeou/apagou a categoria destruiria a edição dele.
