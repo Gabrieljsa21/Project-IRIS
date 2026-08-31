@@ -71,9 +71,38 @@ ITENS_ESPECIAIS = [ITEM_PASTAS, ITEM_RECENTES, ITEM_STEAM]
 # na primeira vez que a tecla de atalho é usada.
 FAVORITOS_PADRAO = ["bloco de notas", "calculadora", "youtube", "navegador"]
 
+# 🔥 Categoria "Projects" (2026-08-30, pedido do usuário: "cria uma categoria
+# Projects, com todos os projetos q temos para abri-los facilmente") - cada
+# item abre a pasta do projeto no Explorer (mesmo mecanismo de qualquer outra
+# pasta favoritada, ver `_lancar` em `iris/ui/menu_radial_qt.py`). Caminhos
+# fixos de propósito (mesmo padrão de `FAVORITOS_PADRAO` acima - seed inicial
+# pra quem nunca configurou nada, não uma abstração de deploy) - só criados se
+# a pasta realmente existir no disco (`garantir_categoria_projetos_padrao`),
+# nunca sobrescrevem uma pasta já cadastrada com o mesmo nome. "GAIA" reusa a
+# pasta "Project G.A.I.A" (já cadastrada por quem configurou o Menu Radial
+# antes) em vez de duplicar outro atalho pro MESMO caminho.
+NOME_CATEGORIA_PROJETOS = "Projects"
+NOME_PASTA_GAIA = "Project G.A.I.A"
+PROJETOS_PADRAO = [
+    ("ARGUS", r"C:\Workspace\Project-ARGUS"),
+    ("ECHO", r"C:\Workspace\Project-ECHO"),
+    ("ERIS", r"C:\Workspace\Project-ERIS"),
+    ("HESTIA", r"C:\Workspace\Project-HESTIA"),
+    ("IRIS", r"C:\Workspace\Project-IRIS"),
+    ("MOIRAI", r"C:\Workspace\Project-MOIRAI"),
+    ("PANDORA", r"C:\Workspace\Project-PANDORA"),
+]
+
 PERFIL_PADRAO = "Geral"
 LIMITE_POR_CAMADA_PADRAO = 8
 MAX_RECENTES = 6
+
+# 🔥 Migração de rótulo (2026-08-30) - categoria de plugin renomeada (`iris_
+# plugin_moirai/providers.py::AnimeTrackerProvider.rotulo_categoria`); sem
+# isso, o rótulo antigo salvo em `favoritos`/`uso` (posição no círculo,
+# contagem de uso acumulada) nunca mais bateria com o provider renomeado -
+# a fatia sumiria do popup em silêncio, e o histórico de uso seria perdido.
+RENOMEACOES_ROTULO = {"🎬 Anime Tracker": "🎬 Watchlist"}
 
 _cache = None  # carregado uma vez por processo; toda escrita atualiza o cache também
 
@@ -122,6 +151,17 @@ def _carregar():
                     for nome, v in pastas_brutas.items()
                 }
                 precisa_persistir_migracao = True
+            for perfil in dados.get("perfis", {}).values():
+                favoritos = perfil.get("favoritos")
+                if favoritos:
+                    novos = [RENOMEACOES_ROTULO.get(f, f) for f in favoritos]
+                    if novos != favoritos:
+                        perfil["favoritos"] = novos
+                        precisa_persistir_migracao = True
+                uso = perfil.get("uso")
+                if uso and any(chave in RENOMEACOES_ROTULO for chave in uso):
+                    perfil["uso"] = {RENOMEACOES_ROTULO.get(chave, chave): valor for chave, valor in uso.items()}
+                    precisa_persistir_migracao = True
             padrao = _estrutura_padrao()
             for chave, valor in padrao.items():
                 dados.setdefault(chave, valor)
@@ -485,6 +525,43 @@ def adicionar_pasta(nome_exibido, caminho):
     pastas = dados.setdefault("pastas", {})
     ativa_atual = pastas.get(nome_exibido, {}).get("ativa", True)
     pastas[nome_exibido] = {"caminho": caminho, "ativa": ativa_atual}
+    _salvar(dados)
+
+
+def garantir_categoria_projetos_padrao():
+    """Cria a categoria "Projects" (todos os projetos do ecossistema, cada
+    um abrindo a própria pasta) UMA VEZ só - chamado no boot
+    (`iris/main.py::main`). Gated por uma flag persistida
+    (`categoria_projetos_criada_v1`) - depois da 1ª vez, o usuário fica livre
+    pra editar/renomear/apagar a categoria sem que ela volte sozinha no
+    próximo boot (diferente das migrações de formato em `_carregar`, isso é
+    um SEED de conteúdo, não uma correção de shape - rodar de novo depois que
+    o usuário já mexeu destruiria a edição dele)."""
+    dados = _carregar()
+    if dados.get("categoria_projetos_criada_v1"):
+        return
+
+    itens = []
+
+    def _adicionar_item(nome, caminho):
+        if nome not in obter_pastas_todas():
+            if not os.path.isdir(caminho):
+                return
+            adicionar_pasta(nome, caminho)
+        itens.append(f"📁 {nome}")
+
+    _adicionar_item(NOME_PASTA_GAIA, r"C:\Workspace\Project G.A.I.A")
+    for nome, caminho in PROJETOS_PADRAO:
+        _adicionar_item(nome, caminho)
+
+    if itens:
+        salvar_categoria(NOME_CATEGORIA_PROJETOS, itens, icone="📁")
+        favoritos = obter_favoritos()
+        if NOME_CATEGORIA_PROJETOS not in favoritos:
+            salvar_favoritos(favoritos + [NOME_CATEGORIA_PROJETOS])
+
+    dados = _carregar()
+    dados["categoria_projetos_criada_v1"] = True
     _salvar(dados)
 
 

@@ -86,8 +86,13 @@ class AnimeTrackerProvider(ActionProvider):
     """FUNCIONAL - fala direto com o Project-MOIRAI (processo próprio, dono
     do estado dos animes desde 2026-08-24)."""
 
+    # 🔥 `id` continua "moirai_anime_tracker" de propósito (2026-08-30,
+    # renomeado só o RÓTULO visível pra "Watchlist", pedido do usuário) - só
+    # o texto exibido no popup mudou; `id` é usado internamente pra registro/
+    # lookup (`iris/plugins/registry.py`) e não precisa acompanhar o nome de
+    # exibição.
     id = "moirai_anime_tracker"
-    rotulo_categoria = "🎬 Anime Tracker"
+    rotulo_categoria = "🎬 Watchlist"
 
     def __init__(self):
         self._icones_por_subitem = {}
