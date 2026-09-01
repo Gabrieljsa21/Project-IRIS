@@ -231,3 +231,53 @@ isdir`). Gated por uma flag persistida (`categoria_projetos_criada_v1`) -
 diferente das migrações de formato em `_carregar` (que sempre corrigem
 shape), isso é um SEED de conteúdo uma única vez: rodar de novo depois que o
 usuário já editou/renomeou/apagou a categoria destruiria a edição dele.
+
+## Categoria "Projects" v2: inicializador + ícone oficial, não a pasta (2026-09-01)
+
+Usuário testou a v1 (categoria abrindo a PASTA de cada projeto, ícone "📁"
+genérico) e corrigiu: "A categoria Projects era p armazenar o inicializador
+de cada projeto, e deveria ter o ícone dele". `garantir_categoria_projetos_
+padrao()` ganhou uma 2ª flag (`categoria_projetos_criada_v2`) - continua
+rodando 1x, mas agora troca CADA item por um app manual
+(`app_launcher.adicionar_app_manual`, mesmo mecanismo já usado pra apontar
+um `.exe` à mão na tela de Configurações) apontando pro `.vbs` que sobe o
+processo escondido via `pythonw` (o mesmo `iniciar_<projeto>_oculto.vbs`
+que qualquer atalho de área de trabalho do ecossistema já usa), e ganha o
+ícone oficial do projeto via `definir_icone_customizado_arquivo` (copia de
+`E:\Downloads\Icones\<Nome>.png` pra `assets/icones_customizados/`, mesma
+fonte usada pro ícone de bandeja do ERIS/LOKI).
+
+**2 exceções continuam abrindo a PASTA** (sem "inicializador" possível):
+- **IRIS** - a própria instância mostrando ESSE popup JÁ é o IRIS rodando;
+  "lançar" de novo só bateria na trava de instância única (porta 8767) e não
+  faria nada visível. Ganha o ícone oficial mesmo assim (útil abrir o
+  código-fonte com a identidade visual certa).
+- **PANDORA** - biblioteca Python pura (importada pelo ERIS), nunca teve
+  processo/entrypoint próprio.
+
+**GAIA vira launcher também** (não fazia parte do "reaproveita a pasta" da
+v1 nem tinha `.vbs` catalogado antes) - usa `iniciar_galateia_oculto.vbs` +
+ícone PRÓPRIO (`assistant/assets/app_theme.ico`, não vem de `E:\Downloads\
+Icones` como os satélites - é o mesmo ícone que o Painel/bandeja da própria
+GAIA já usa).
+
+**Sem arte oficial ainda pra ECHO/PANDORA** (não existe arquivo em
+`E:\Downloads\Icones` pra nenhum dos 2) - ficam com o emoji padrão até
+existir; `icone=None` em `PROJETOS_PADRAO` marca esse caso, não trava nada.
+
+**3 satélites ganharam launcher escondido NOVO nesta mesma mudança** (não
+existia nenhum `.bat`/`.vbs` antes) - `iniciar_moirai_oculto.vbs`
+(Project-MOIRAI), `iniciar_echo_oculto.vbs` (Project-ECHO),
+`iniciar_hestia_oculto.vbs` (Project-HESTIA), mesmo template exato de
+`iniciar_iris.bat`/`iniciar_iris_oculto.vbs`. **Diferente de GAIA/ERIS
+(que já tinham), esses 3 ainda NÃO redirecionam stdout/stderr pra um
+arquivo de log** - rodar escondido via `pythonw` neles hoje descarta
+qualquer `print()`/traceback no vazio, mesmo problema que o ERIS teve antes
+de ganhar `_RedirecionadorLog` (`eris/main.py`). Não corrigido aqui (fora do
+escopo desta mudança - só criar o launcher) - registrado como pendência de
+cada projeto (ver `TODO.md` deles).
+
+As pastas que a v1 tinha criado pra ARGUS/ECHO/ERIS/HESTIA/MOIRAI (que
+viraram launcher na v2) ficam ÓRFÃS de propósito, não removidas - continuam
+existindo em `pastas`, aparecem em "📂 Pastas" se o usuário preferir abrir a
+pasta em vez do launcher, só não fazem mais parte da categoria "Projects".
