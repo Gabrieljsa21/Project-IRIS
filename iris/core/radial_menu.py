@@ -72,25 +72,40 @@ ITENS_ESPECIAIS = [ITEM_PASTAS, ITEM_RECENTES, ITEM_STEAM]
 FAVORITOS_PADRAO = ["bloco de notas", "calculadora", "youtube", "navegador"]
 
 # 🔥 Categoria "Projects" (2026-08-30, pedido do usuário: "cria uma categoria
-# Projects, com todos os projetos q temos para abri-los facilmente") - cada
-# item abre a pasta do projeto no Explorer (mesmo mecanismo de qualquer outra
-# pasta favoritada, ver `_lancar` em `iris/ui/menu_radial_qt.py`). Caminhos
-# fixos de propósito (mesmo padrão de `FAVORITOS_PADRAO` acima - seed inicial
-# pra quem nunca configurou nada, não uma abstração de deploy) - só criados se
-# a pasta realmente existir no disco (`garantir_categoria_projetos_padrao`),
-# nunca sobrescrevem uma pasta já cadastrada com o mesmo nome. "GAIA" reusa a
-# pasta "Project G.A.I.A" (já cadastrada por quem configurou o Menu Radial
-# antes) em vez de duplicar outro atalho pro MESMO caminho.
+# Projects, com todos os projetos q temos para abri-los facilmente"; corrigida
+# em 2026-09-01, usuário: "A categoria Projects era p armazenar o inicializador
+# de cada projeto, e deveria ter o ícone dele" - a v1 abria a PASTA de cada
+# projeto; cada item agora ABRE O INICIALIZADOR de verdade (o `.vbs` que sobe
+# o processo escondido via pythonw, mesmo de um atalho de área de trabalho) e
+# ganha o ícone oficial do projeto (`E:\Downloads\Icones\<Nome>.png` - mesma
+# fonte usada pro ícone de bandeja do ERIS/LOKI).
+#
+# 2 exceções continuam abrindo a PASTA (não tem "inicializador" pra elas):
+# - IRIS: a própria instância que está mostrando ESSE popup JÁ é o IRIS
+#   rodando - "lançar" de novo só bateria na trava de instância única (porta
+#   8767) e não faria nada visível, então o item continua abrindo o código-
+#   fonte, útil pra editar.
+# - PANDORA: biblioteca Python pura (importada pelo ERIS), nunca teve
+#   processo/entrypoint próprio - não existe "inicializador" possível.
+#
+# `caminho_launcher=None` marca essas 2 exceções (usa `_PASTA_GAIA_EXISTENTE`/
+# `caminho` como pasta em vez de registrar um app). `icone=None` marca projeto
+# sem arte oficial ainda (ECHO/GAIA/PANDORA não têm arquivo em
+# `E:\Downloads\Icones` - GAIA tem ícone PRÓPRIO em outro lugar, ver abaixo;
+# ECHO/PANDORA ficam com o emoji padrão até existir arte).
 NOME_CATEGORIA_PROJETOS = "Projects"
 NOME_PASTA_GAIA = "Project G.A.I.A"
+ICONE_GAIA = r"C:\Workspace\Project G.A.I.A\assistant\assets\app_theme.ico"
+
+# (nome, pasta_do_projeto, caminho_launcher_ou_None, caminho_icone_ou_None)
 PROJETOS_PADRAO = [
-    ("ARGUS", r"C:\Workspace\Project-ARGUS"),
-    ("ECHO", r"C:\Workspace\Project-ECHO"),
-    ("ERIS", r"C:\Workspace\Project-ERIS"),
-    ("HESTIA", r"C:\Workspace\Project-HESTIA"),
-    ("IRIS", r"C:\Workspace\Project-IRIS"),
-    ("MOIRAI", r"C:\Workspace\Project-MOIRAI"),
-    ("PANDORA", r"C:\Workspace\Project-PANDORA"),
+    ("ARGUS", r"C:\Workspace\Project-ARGUS", r"C:\Workspace\Project-ARGUS\iniciar_argus_oculto.vbs", r"E:\Downloads\Icones\Argus.png"),
+    ("ECHO", r"C:\Workspace\Project-ECHO", r"C:\Workspace\Project-ECHO\iniciar_echo_oculto.vbs", None),
+    ("ERIS", r"C:\Workspace\Project-ERIS", r"C:\Workspace\Project-ERIS\iniciar_eris_oculto.vbs", r"E:\Downloads\Icones\Eris.png"),
+    ("HESTIA", r"C:\Workspace\Project-HESTIA", r"C:\Workspace\Project-HESTIA\iniciar_hestia_oculto.vbs", r"E:\Downloads\Icones\Hestia.png"),
+    ("IRIS", r"C:\Workspace\Project-IRIS", None, r"E:\Downloads\Icones\Iris.png"),
+    ("MOIRAI", r"C:\Workspace\Project-MOIRAI", r"C:\Workspace\Project-MOIRAI\iniciar_moirai_oculto.vbs", r"E:\Downloads\Icones\Moirai.png"),
+    ("PANDORA", r"C:\Workspace\Project-PANDORA", None, None),
 ]
 
 PERFIL_PADRAO = "Geral"
@@ -529,30 +544,60 @@ def adicionar_pasta(nome_exibido, caminho):
 
 
 def garantir_categoria_projetos_padrao():
-    """Cria a categoria "Projects" (todos os projetos do ecossistema, cada
-    um abrindo a própria pasta) UMA VEZ só - chamado no boot
-    (`iris/main.py::main`). Gated por uma flag persistida
-    (`categoria_projetos_criada_v1`) - depois da 1ª vez, o usuário fica livre
-    pra editar/renomear/apagar a categoria sem que ela volte sozinha no
-    próximo boot (diferente das migrações de formato em `_carregar`, isso é
-    um SEED de conteúdo, não uma correção de shape - rodar de novo depois que
-    o usuário já mexeu destruiria a edição dele)."""
+    """Cria/atualiza a categoria "Projects" (1 item por projeto do
+    ecossistema) - chamado no boot (`iris/main.py::main`). Versionado por
+    flag persistida:
+    - v1 (`categoria_projetos_criada_v1`, 2026-08-30): cada item abria a
+      PASTA do projeto, ícone genérico "📁".
+    - v2 (`categoria_projetos_criada_v2`, 2026-09-01, pedido do usuário: "A
+      categoria Projects era p armazenar o inicializador de cada projeto, e
+      deveria ter o ícone dele"): cada item agora abre o INICIALIZADOR de
+      verdade (registrado como app manual, `app_launcher.adicionar_app_
+      manual`) e ganha o ícone oficial do projeto, ver `PROJETOS_PADRAO`
+      acima. As 2 pastas antigas que a v1 tinha criado pra projetos que
+      viraram launcher na v2 (ex.: "📁 ARGUS") ficam órfãs de propósito -
+      continuam existindo em `pastas`/aparecem em "📂 Pastas" se o usuário
+      quiser abrir a pasta em vez do launcher, só não fazem mais parte da
+      categoria "Projects".
+
+    Cada versão só roda 1x - depois disso o usuário fica livre pra editar/
+    apagar a categoria sem que ela volte sozinha no próximo boot (diferente
+    das migrações de formato em `_carregar`, isso é um SEED de conteúdo)."""
     dados = _carregar()
-    if dados.get("categoria_projetos_criada_v1"):
+    if dados.get("categoria_projetos_criada_v2"):
         return
+
+    from iris.core import app_launcher
 
     itens = []
 
-    def _adicionar_item(nome, caminho):
-        if nome not in obter_pastas_todas():
-            if not os.path.isdir(caminho):
-                return
-            adicionar_pasta(nome, caminho)
-        itens.append(f"📁 {nome}")
+    def _adicionar_launcher(nome, caminho_launcher, caminho_icone):
+        app_launcher.adicionar_app_manual(nome, caminho_launcher)
+        itens.append(nome)
+        if caminho_icone and os.path.isfile(caminho_icone):
+            definir_icone_customizado_arquivo(nome, caminho_icone)
 
-    _adicionar_item(NOME_PASTA_GAIA, r"C:\Workspace\Project G.A.I.A")
-    for nome, caminho in PROJETOS_PADRAO:
-        _adicionar_item(nome, caminho)
+    def _adicionar_pasta_item(nome, caminho_pasta, caminho_icone):
+        if nome not in obter_pastas_todas():
+            if not os.path.isdir(caminho_pasta):
+                return
+            adicionar_pasta(nome, caminho_pasta)
+        rotulo = f"📁 {nome}"
+        itens.append(rotulo)
+        if caminho_icone and os.path.isfile(caminho_icone):
+            definir_icone_customizado_arquivo(rotulo, caminho_icone)
+
+    caminho_gaia_vbs = r"C:\Workspace\Project G.A.I.A\assistant\iniciar_galateia_oculto.vbs"
+    if os.path.isfile(caminho_gaia_vbs):
+        _adicionar_launcher("GAIA", caminho_gaia_vbs, ICONE_GAIA)
+    else:
+        _adicionar_pasta_item(NOME_PASTA_GAIA, r"C:\Workspace\Project G.A.I.A", ICONE_GAIA)
+
+    for nome, pasta, launcher, icone in PROJETOS_PADRAO:
+        if launcher and os.path.isfile(launcher):
+            _adicionar_launcher(nome, launcher, icone)
+        else:
+            _adicionar_pasta_item(nome, pasta, icone)
 
     if itens:
         salvar_categoria(NOME_CATEGORIA_PROJETOS, itens, icone="📁")
@@ -561,7 +606,7 @@ def garantir_categoria_projetos_padrao():
             salvar_favoritos(favoritos + [NOME_CATEGORIA_PROJETOS])
 
     dados = _carregar()
-    dados["categoria_projetos_criada_v1"] = True
+    dados["categoria_projetos_criada_v2"] = True
     _salvar(dados)
 
 
