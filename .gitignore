@@ -16,6 +16,7 @@ dist/
 # Dados gerados em runtime (config real do usuário - nunca commitado)
 data/*.json
 !data/menu_radial_config.example.json
+data/moirai_capas_cache/
 
 # Editores / SO
 .vscode/
