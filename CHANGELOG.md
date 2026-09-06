@@ -11,6 +11,12 @@ foi documentada retroativamente; o histórico versionado começa em `0.1.0`.
 ## [Unreleased]
 
 ### Novidades
+- **SIREN adicionado à categoria "Projects"** (2026-09-06) - novo player de
+  música pessoal do ecossistema (`Project-SIREN`), registrado como app
+  manual (`iniciar_siren_oculto.vbs`, mesmo padrão de `app_launcher.
+  adicionar_app_manual` dos demais). Sem ícone oficial ainda (emoji padrão,
+  mesma situação do ECHO/PANDORA). `PROJETOS_PADRAO` atualizado pra
+  reinstalações futuras também pegarem o SIREN automaticamente.
 - **Categoria "Projects"** (2026-08-30, pedido do usuário: "cria uma categoria Projects, com todos os projetos q temos para abri-los facilmente") - categoria de usuário comum (não plugin), 1 item por projeto irmão do ecossistema (ARGUS/ECHO/ERIS/HESTIA/IRIS/MOIRAI/PANDORA/GAIA). Semeada 1x no boot (`radial_menu.garantir_categoria_projetos_padrao`), livre pra editar/apagar depois. **v2 no mesmo dia seguinte (2026-09-01, usuário corrigiu: "era p armazenar o inicializador de cada projeto, e deveria ter o ícone dele")** - cada item passou de "abrir a pasta" pra "rodar o `.vbs` que sobe o processo escondido" (registrado como app manual) + ganhou o ícone oficial do projeto (`E:\Downloads\Icones`); IRIS/PANDORA continuam abrindo a pasta (sem inicializador possível pros 2). ECHO/MOIRAI/HESTIA ganharam `.vbs` novo nessa mesma mudança - não existia nenhum antes. Ver `ARQUITETURA.md`.
 - Botão "Instalar integração com a GAIA" (Configurações → Preferências → Plugins), quando nenhum plugin está registrado - instala `plugins/iris_plugin_gaia` via `uv pip install -e` sem precisar de terminal.
 - `AnimacoesVTSProvider`/`FuncoesGaiaProvider`/`AnimeTrackerProvider` (plugin `iris_plugin_gaia`) saem do estado de stub - passam a chamar endpoints HTTP novos do lado da GAIA (porta 8765 do overlay pra Animações; porta 8766 nova, sempre ativa, pra Funções da Gaia e Anime Tracker). Ver `ARQUITETURA.md` e `plugins/iris_plugin_gaia/TODO.md`.

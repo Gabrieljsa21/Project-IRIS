@@ -90,9 +90,9 @@ FAVORITOS_PADRAO = ["bloco de notas", "calculadora", "youtube", "navegador"]
 #
 # `caminho_launcher=None` marca essas 2 exceções (usa `_PASTA_GAIA_EXISTENTE`/
 # `caminho` como pasta em vez de registrar um app). `icone=None` marca projeto
-# sem arte oficial ainda (ECHO/GAIA/PANDORA não têm arquivo em
+# sem arte oficial ainda (ECHO/GAIA/PANDORA/SIREN não têm arquivo em
 # `E:\Downloads\Icones` - GAIA tem ícone PRÓPRIO em outro lugar, ver abaixo;
-# ECHO/PANDORA ficam com o emoji padrão até existir arte).
+# ECHO/PANDORA/SIREN ficam com o emoji padrão até existir arte).
 NOME_CATEGORIA_PROJETOS = "Projects"
 NOME_PASTA_GAIA = "Project G.A.I.A"
 ICONE_GAIA = r"C:\Workspace\Project G.A.I.A\assistant\assets\app_theme.ico"
@@ -106,6 +106,7 @@ PROJETOS_PADRAO = [
     ("IRIS", r"C:\Workspace\Project-IRIS", None, r"E:\Downloads\Icones\Iris.png"),
     ("MOIRAI", r"C:\Workspace\Project-MOIRAI", r"C:\Workspace\Project-MOIRAI\iniciar_moirai_oculto.vbs", r"E:\Downloads\Icones\Moirai.png"),
     ("PANDORA", r"C:\Workspace\Project-PANDORA", None, None),
+    ("SIREN", r"C:\Workspace\Project-SIREN", r"C:\Workspace\Project-SIREN\iniciar_siren_oculto.vbs", None),
 ]
 
 PERFIL_PADRAO = "Geral"
