@@ -25,6 +25,20 @@ foi documentada retroativamente; o histórico versionado começa em `0.1.0`.
 - **Fase 2 do MOIRAI (2026-08-24)**: `POST /anime/adicionar` do lado do MOIRAI parou de disparar o download sozinho (agora é `POST /anime/baixar_pendentes`, chamada separada) - `AnimeTrackerProvider.executar` (item "Adicionar Anime") passou a chamar os 2 endpoints em sequência, mesmo comportamento final de sempre pro usuário.
 - **Anime Tracker: só "Para assistir" + capa como ícone (2026-08-24)** - a lista de subitens passou a vir de `GET /anime/para_assistir` (só quem já tem episódio baixado, evita clique morto), e cada anime ganhou a própria capa como ícone em vez do emoji "🎬" genérico pra todo mundo - baixada 1x (via MOIRAI, cacheada localmente) em background, nunca travando a abertura do popup. Motivou o método opcional `icone_para_subitem` novo em `ActionProvider` (`iris/plugins/base.py`), disponível pra qualquer provider futuro que precise de ícone dinâmico por subitem.
 
+### Corrigido
+- **Cache stale em `radial_menu.py` engolia edição feita por fora (2026-09-06)**
+  - achado investigando "adicionei o SIREN na categoria Projects, mas ele
+    sumiu de novo" - `_carregar()` guardava o dict inteiro num `_cache` de
+    módulo, lido do disco só na 1ª chamada do processo; qualquer edição
+    externa ao `data/menu_radial_config.json` enquanto o IRIS já estava
+    rodando (ex.: um script registrando um app novo) desaparecia na
+    próxima vez que QUALQUER `_salvar()` acontecesse, porque ele escrevia
+    de volta o `_cache` velho por cima. Mesma classe de bug já corrigida
+    antes no Argus/HESTIA/MOIRAI/ECHO ("ler 1x, nunca recarregar") - `_cache`
+    removido de vez, `_carregar()` sempre lê do disco de novo. Validado:
+    editar o arquivo por fora e chamar `obter_categorias()` de novo, no
+    MESMO processo Python, já reflete a edição (antes não refletia).
+
 ### Alterado
 - Ícone da bandeja do sistema (`assets/icones/menu_radial_botao.png`) trocado pela arte oficial nova do IRIS.
 - **Categoria "🎬 Anime Tracker" renomeada pra "🎬 Watchlist"** (2026-08-30, pedido do usuário) - só o rótulo (`AnimeTrackerProvider.rotulo_categoria`) mudou, `id`/classe continuam iguais. Rótulo antigo salvo em `favoritos`/`uso` migrado automaticamente no próximo boot, sem perder posição no círculo nem o histórico de uso. Ver `ARQUITETURA.md`.
