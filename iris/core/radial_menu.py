@@ -120,7 +120,15 @@ MAX_RECENTES = 6
 # a fatia sumiria do popup em silêncio, e o histórico de uso seria perdido.
 RENOMEACOES_ROTULO = {"🎬 Anime Tracker": "🎬 Watchlist"}
 
-_cache = None  # carregado uma vez por processo; toda escrita atualiza o cache também
+# 🔥 SEM cache em memória entre chamadas (2026-09-06, achado real: editar
+# `data/menu_radial_config.json` por fora - ex.: registrar o SIREN na
+# categoria "Projects" - enquanto o IRIS já estava rodando fazia a edição
+# sumir na primeira gravação seguinte, porque `_salvar` escrevia de volta o
+# dict inteiro em memória, carregado 1x no boot e nunca mais recarregado -
+# mesma classe de bug já corrigida antes no Argus/HESTIA/MOIRAI/ECHO nesse
+# ecossistema, "ler 1x, nunca recarregar"). `_carregar` agora sempre lê do
+# disco de novo; custo de reabrir um JSON pequeno a cada chamada é
+# irrelevante comparado ao risco de perder edição feita por fora.
 
 
 def _estrutura_padrao():
@@ -143,9 +151,6 @@ def _estrutura_padrao():
 
 
 def _carregar():
-    global _cache
-    if _cache is not None:
-        return _cache
     if os.path.exists(ARQUIVO_DADOS):
         try:
             with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
@@ -187,20 +192,15 @@ def _carregar():
                 dados["perfil_atual"] = next(iter(dados["perfis"]))
             if precisa_persistir_migracao:
                 _salvar(dados)  # grava a migração na hora - não só na próxima escrita
-            else:
-                _cache = dados
-            return _cache
+            return dados
         except Exception:
             pass
     dados = _estrutura_padrao()
-    _cache = dados
     _salvar(dados)
-    return _cache
+    return dados
 
 
 def _salvar(dados):
-    global _cache
-    _cache = dados
     os.makedirs(os.path.dirname(ARQUIVO_DADOS), exist_ok=True)
     with open(ARQUIVO_DADOS, "w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False, indent=2)
