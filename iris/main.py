@@ -14,7 +14,7 @@ imediato). `IrisApp` é um `QObject` com um `Signal` (`menu_radial_solicitado`)
 conectado a um slot que roda na GUI thread; `Signal.emit()` é seguro de
 chamar de qualquer thread (Qt enfileira a entrega sozinho quando emissor e
 receptor moram em threads diferentes) - mesmo padrão documentado em
-`ARQUITETURA.md` (baseado no que `Project G.A.I.A/assistant/run.py` +
+`docs/ARQUITETURA.md` (baseado no que `Project G.A.I.A/assistant/run.py` +
 `ui/qt_painel.py` já fazem, portado aqui de forma independente, sem importar
 nada de lá)."""
 import importlib

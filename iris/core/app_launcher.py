@@ -3,7 +3,7 @@
 (jogos da Steam + atalhos do Menu Iniciar, ver `apps_scanner.py`) e apps
 manuais (caminho apontado à mão na tela de Configurações). Portado de
 `Project G.A.I.A/assistant/features/app_launcher/app_launcher.py` (ver
-`ARQUITETURA.md` na raiz do repo) - a versão original também processava tags
+`docs/ARQUITETURA.md` na raiz do repo) - a versão original também processava tags
 de voz/LLM (`<APP:abrir:...>`) e escrita ditada no Bloco de Notas, que são
 features de PRODUTO da GAIA (não deste launcher) e ficaram de fora do porte."""
 
