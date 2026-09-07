@@ -1,7 +1,7 @@
 # IRIS - arquitetura consolidada
 
 Launcher radial pra Windows, extraído do "Menu Radial" que vivia embutido no
-processo/Painel da [GAIA](../Project%20G.A.I.A) (`Project G.A.I.A/assistant`,
+processo/Painel da [GAIA](../../Project%20G.A.I.A) (`Project G.A.I.A/assistant`,
 `ui/menu_radial_qt.py` + `features/radial_menu/radial_menu.py`). Nasceu de
 uma feature de produto da GAIA, mas é desenhado desde o início como
 **projeto separado**, com repo próprio - usável sozinho por qualquer pessoa
@@ -27,7 +27,7 @@ GAIA que faltava (endpoints HTTP novos pra Funções da Gaia/Animações do
 VTube Studio) foi concluído.
 
 **Anime Tracker mudou de dono (2026-08-24)** - o Assistente de Animes
-deixou de ser hospedado pela GAIA (agora processo próprio, [Project MOIRAI](../Project-MOIRAI))
+deixou de ser hospedado pela GAIA (agora processo próprio, [Project MOIRAI](../../Project-MOIRAI))
 e o `AnimeTrackerProvider` saiu de `iris_plugin_gaia` pra um pacote novo,
 `plugins/iris_plugin_moirai/` (mesmo contrato HTTP de sempre, só a URL base
 mudou - ver `TODO.md` de cada pacote). `obter_anime_pasta_downloads` (pasta
@@ -74,7 +74,7 @@ menu_radial_qt.py` antes de qualquer porte. Cada um virou uma classe
 |---|---|---|---|---|
 | 1 | `_abrir_funcao_gaia` - chamada Python DIRETA em `PainelQt.instancia_atual` (só funciona no MESMO processo) | ⚙️ Funções da Gaia | `FuncoesGaiaProvider` | **Funcional** (2026-08-21) |
 | 2 | `_chamar_overlay`/`_ativar_animacao`/`_reagir` - API HTTP local (porta 8765) + `VTubeStudioClient` (websocket direto) | 🖥️ Avatar (Overlay) / 🎭 Animações do VTube Studio | `AvatarOverlayProvider` / `AnimacoesVTSProvider` | **Funcional** (Animações desde 2026-08-21) |
-| 3 | `_adicionar_anime_da_area_de_transferencia`/`_assistir_anime_por_titulo` - `anime_tracker` (scraping + qBittorrent) | 🎬 Anime Tracker | `AnimeTrackerProvider` | **Funcional** (2026-08-21); pasta de downloads configurável ainda pendente |
+| 3 | `_adicionar_anime_da_area_de_transferencia`/`_assistir_anime_por_titulo` - `anime_tracker` (scraping + qBittorrent) | 🎬 Anime Tracker | `AnimeTrackerProvider` | **Funcional** (2026-08-21); pasta de downloads restaurada via MOIRAI em 2026-09-07 |
 | 4 | `brain_store.obter_automacao_apps_habilitada`/`obter_anime_pasta_downloads` - 2 flags lidas do cérebro central da GAIA (~4786 linhas) só pra isso | (kill-switch de automação, sem categoria própria) | `obter_anime_pasta_downloads` fica pendente no plugin (Anime Tracker); o kill-switch foi removido | Removido do core (2026-08-15) |
 
 O ponto #2 virou DUAS categorias porque, na origem, elas usam mecanismos
@@ -108,6 +108,14 @@ sem LLM). `obter_anime_pasta_downloads` (a outra metade do ponto #4) é
 específico do Anime Tracker - continua pendente junto com esse stub.
 
 ## Sistema de plugins
+
+### Capacidades e autorização (2026-09-07)
+
+Cada `ActionProvider` declara as capacidades necessárias entre rede, iniciar processo, ler arquivo, escrever arquivo e controlar janela. O registry valida o manifesto ao registrar o provider e rejeita capacidades desconhecidas ou timeout inválido. A tela de Plugins exibe esse contrato antes do uso.
+
+A execução de uma ação sensível passa por `executar_provider`: sem um callback de confirmação explícita, ela falha fechada. O menu radial fornece essa confirmação visual. Os providers oficiais da GAIA e do MOIRAI já informam suas capacidades; providers antigos sem capacidades continuam compatíveis apenas para ações não sensíveis.
+
+**Limitações conhecidas (revisão de 2026-09-07):** `capacidades()` e `confirmacao_para()` são desacoplados - o registry só valida que a capacidade declarada existe no conjunto conhecido, ele não obriga um provider com capacidade sensível a implementar `confirmacao_para`. Um provider mal-escrito pode declarar `{"gravar_arquivo", "rede"}` e nunca sobrescrever `confirmacao_para` (herda `None` da base), executando sem confirmação nenhuma - a checagem protege contra capacidade desconhecida/typo, não contra um provider que declara pouco ou nada de confirmação pra uma ação sensível real. `tempo_limite_segundos` e `cancelar()` também não têm enforcement nenhum do framework hoje - são só validados na hora de registrar (`> 0`) e exibidos na tela de Plugins; cada provider precisa implementar seu próprio timeout/cancelamento na prática (ex.: `iris_plugin_moirai` já usa `urlopen(..., timeout=30)` alinhado ao valor declarado, mas isso é disciplina do autor, não garantia do registry).
 
 - **`iris/plugins/base.py::ActionProvider`** - interface mínima:
   `id`, `rotulo_categoria`, `esta_disponivel()`, `listar_subitens()`,

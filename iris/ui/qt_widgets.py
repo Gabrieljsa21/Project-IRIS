@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Widgets reutilizáveis em PySide6, vendorizados de `Project G.A.I.A/
-assistant/ui/qt_widgets.py` (ver `ARQUITETURA.md` na raiz do repo) - só o
+assistant/ui/qt_widgets.py` (ver `docs/ARQUITETURA.md` na raiz do repo) - só o
 subconjunto genuinamente usado pela tela de Configurações do IRIS
 (`iris/ui/settings_window.py`) e pelo bootstrap da `QApplication`
 (`iris/main.py`). O arquivo original tem mais widgets/helpers usados só por

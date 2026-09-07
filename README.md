@@ -4,63 +4,62 @@
 
 # Project IRIS
 
-Launcher radial pra Windows - um popup circular, acionado por um hotkey
-global, pra abrir apps, pastas, sites, atalhos e jogos da Steam sem tirar as
-mãos do teclado. Funciona 100% sozinho (nenhuma dependência externa além do
-que está em `pyproject.toml`); quem também usa a [GAIA](../Project%20G.A.I.A)
-(assistente pessoal do mesmo autor) pode instalar um plugin opcional que soma
-categorias extras ao popup quando ela estiver rodando.
+Menu radial para Windows que abre programas, pastas, sites, atalhos e jogos da Steam com uma tecla global.
 
-Arquitetura completa e decisões de design em [`ARQUITETURA.md`](ARQUITETURA.md).
+## Recursos principais
 
-## A origem de IRIS
+- menu circular aberto por `Ctrl+Alt+Espaço`;
+- favoritos e categorias editáveis;
+- busca de programas e jogos instalados;
+- suporte a várias páginas e níveis;
+- ícone na bandeja;
+- sistema de plugins opcionais.
 
-O nome possui dois significados ligados ao projeto.
+## Origem do nome
 
-Na mitologia grega, Íris é a mensageira dos deuses e representa a conexão entre diferentes lugares.
+IRIS vem de Íris (Ἶρις), deusa grega do arco-íris e mensageira dos deuses. Na mitologia, ela transporta mensagens entre diferentes lugares e entidades. O arco-íris representa seu caminho e funciona como uma ponte entre o céu e a terra.
 
-Além disso, a íris do olho possui uma estrutura naturalmente radial, semelhante à organização do menu.
+Essa origem combina com o projeto como meio de navegação e acesso: **Íris → mensageira e ponte → interface → acesso a diferentes funções**. O nome também se liga à íris do olho. Seu formato radial lembra a organização do menu, com o usuário no centro e diferentes caminhos ao redor.
 
-O nome representa, portanto, um ponto central que conecta o usuário aos seus aplicativos, pastas, ações e atalhos.
+### Identidade visual
 
-## Uso standalone
+A logo mostra Íris como uma figura feminina alada. O espectro de cores faz parte das próprias asas, que formam quase um círculo e lembram caminhos se abrindo em várias direções.
 
-```bash
+É a logo mais colorida do conjunto, o que facilita seu reconhecimento em tamanho pequeno. A composição transforma arco-íris, movimento e asas em uma ponte visual entre o usuário e os sistemas.
+
+## Requisitos
+
+- Windows;
+- Python 3.11 ou mais recente.
+
+## Instalação e uso
+
+```powershell
 uv venv
 uv pip install -e .
 python -m iris.main
 ```
 
-`Ctrl+Alt+Espaço` abre o popup (2º toque fecha). Um ícone fica na bandeja do
-sistema com acesso a **Configurações** (favoritos, categorias, pastas, jogos
-da Steam, preferências) e **Sair** - não existe janela principal nem entrada
-na barra de tarefas, só o popup e a bandeja.
+Na primeira execução, o IRIS cria `data/menu_radial_config.json`. Use o ícone da bandeja para abrir as configurações. `iniciar_iris_oculto.vbs` inicia o menu sem terminal visível.
 
-Na primeira execução, `data/menu_radial_config.json` é criado sozinho com um
-punhado de favoritos padrão (bloco de notas, calculadora, YouTube,
-navegador) - ajuste tudo pela tela de Configurações. `data/
-menu_radial_config.example.json` mostra o schema completo preenchido (sem
-nenhum dado pessoal real).
+## Integrações com outros projetos
 
-## Plugins opcionais
+- **GAIA:** o plugin `iris_plugin_gaia` adiciona atalhos para o avatar, funções da assistente e ações do VTube Studio.
+- **MOIRAI:** o plugin `iris_plugin_moirai` adiciona a categoria Watchlist e acesso rápido aos animes acompanhados.
+- **Projetos do ecossistema:** a categoria Projects abre os inicializadores com os ícones oficiais quando eles estão instalados.
 
-Quem também roda a [GAIA](../Project%20G.A.I.A) pode instalar
-`plugins/iris_plugin_gaia/` pelo botão "Instalar integração com a GAIA"
-(Configurações → Preferências → Plugins) - ou manualmente
-(`uv pip install -e plugins/iris_plugin_gaia`) - pra ganhar categorias
-extras no popup quando ela estiver de pé: **Avatar (Overlay)**, **Animações
-do VTube Studio** e **Funções da Gaia**, todos funcionais hoje (ver
-`plugins/iris_plugin_gaia/README.md`).
+Todas as integrações são opcionais. O menu principal funciona sozinho.
 
-O **Anime Tracker** virou um plugin separado, `plugins/iris_plugin_moirai/`
-(2026-08-24) - fala direto com o [Project MOIRAI](../Project-MOIRAI), não
-com a GAIA, então funciona mesmo sem ela de pé (só precisa do MOIRAI
-rodando). Ver `plugins/iris_plugin_moirai/README.md`.
+## Documentação
 
-## Estado atual
+- [Arquitetura](docs/ARQUITETURA.md)
+- [Pendências](docs/TODO.md)
+- [Versionamento](docs/VERSIONAMENTO_CHANGELOG.md)
+- [Plugin da GAIA](plugins/iris_plugin_gaia/README.md)
+- [Plugin do MOIRAI](plugins/iris_plugin_moirai/README.md)
+- [Histórico de versões](CHANGELOG.md)
+- [Padrão de documentação](docs/PADRAO_DOCUMENTACAO.md)
 
-Extração inicial do Menu Radial que já existia dentro da GAIA (ver
-`ARQUITETURA.md`, seção "Estado atual") - popup, persistência, app launcher
-genérico e monitor de hardware portados e funcionais; tela de Configurações
-própria criada do zero (a GAIA nunca teve uma standalone, sempre dependeu do
-Painel dela). Ver `TODO.md` pras pendências reais.
+## Situação atual
+
+O menu, as configurações, o início sem terminal e os plugins opcionais estão em uso.

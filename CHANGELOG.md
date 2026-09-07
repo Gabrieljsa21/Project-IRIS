@@ -1,31 +1,44 @@
 # Changelog
 
-Histórico de alto nível do que muda no Project IRIS, por versão. Detalhe técnico
-completo de cada decisão está em `ARQUITETURA.md`.
+Este arquivo registra as mudanças importantes do projeto. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e as versões seguem o [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-Versionamento: [Semantic Versioning](VERSIONAMENTO_CHANGELOG.md). A extração
+Histórico de alto nível do que muda no Project IRIS, por versão. Detalhe técnico
+completo de cada decisão está em `docs/ARQUITETURA.md`.
+
+Versionamento: [Semantic Versioning](docs/VERSIONAMENTO_CHANGELOG.md). A extração
 inicial do Menu Radial (scaffold, port do core, plugin da GAIA, documentação -
-ver `ARQUITETURA.md` pro histórico completo) é anterior a este arquivo e não
+ver `docs/ARQUITETURA.md` pro histórico completo) é anterior a este arquivo e não
 foi documentada retroativamente; o histórico versionado começa em `0.1.0`.
 
 ## [Unreleased]
 
-### Novidades
+### Adicionado
+
+- **Permissões declarativas e confirmação de plugins (2026-09-07)** - `ActionProvider` agora declara capacidades de rede, processo, leitura/escrita de arquivos e controle de janela, além de timeout positivo e cancelamento opcional. O registry rejeita capacidades desconhecidas; ações sensíveis falham fechadas sem confirmação explícita. Providers oficiais foram classificados e a tela de Plugins mostra suas capacidades e timeout. O item concluído foi removido de `docs/TODO.md`.
+- **Pasta de downloads do MOIRAI voltou à categoria Watchlist** (2026-09-07): o plugin consulta `GET /pasta_downloads` e oferece o item "📁 Abrir pasta de downloads" no menu. As ações "Adicionar Anime" e "Abrir pasta" continuam visíveis mesmo quando não há episódio pronto para assistir. Validado com resposta HTTP simulada e compilação do provider.
 - **SIREN adicionado à categoria "Projects"** (2026-09-06) - novo player de
   música pessoal do ecossistema (`Project-SIREN`), registrado como app
   manual (`iniciar_siren_oculto.vbs`, mesmo padrão de `app_launcher.
   adicionar_app_manual` dos demais). Sem ícone oficial ainda (emoji padrão,
   mesma situação do ECHO/PANDORA). `PROJETOS_PADRAO` atualizado pra
   reinstalações futuras também pegarem o SIREN automaticamente.
-- **Categoria "Projects"** (2026-08-30, pedido do usuário: "cria uma categoria Projects, com todos os projetos q temos para abri-los facilmente") - categoria de usuário comum (não plugin), 1 item por projeto irmão do ecossistema (ARGUS/ECHO/ERIS/HESTIA/IRIS/MOIRAI/PANDORA/GAIA). Semeada 1x no boot (`radial_menu.garantir_categoria_projetos_padrao`), livre pra editar/apagar depois. **v2 no mesmo dia seguinte (2026-09-01, usuário corrigiu: "era p armazenar o inicializador de cada projeto, e deveria ter o ícone dele")** - cada item passou de "abrir a pasta" pra "rodar o `.vbs` que sobe o processo escondido" (registrado como app manual) + ganhou o ícone oficial do projeto (`E:\Downloads\Icones`); IRIS/PANDORA continuam abrindo a pasta (sem inicializador possível pros 2). ECHO/MOIRAI/HESTIA ganharam `.vbs` novo nessa mesma mudança - não existia nenhum antes. Ver `ARQUITETURA.md`.
+- **Categoria "Projects"** (2026-08-30, pedido do usuário: "cria uma categoria Projects, com todos os projetos q temos para abri-los facilmente") - categoria de usuário comum (não plugin), 1 item por projeto irmão do ecossistema (ARGUS/ECHO/ERIS/HESTIA/IRIS/MOIRAI/PANDORA/GAIA). Semeada 1x no boot (`radial_menu.garantir_categoria_projetos_padrao`), livre pra editar/apagar depois. **v2 no mesmo dia seguinte (2026-09-01, usuário corrigiu: "era p armazenar o inicializador de cada projeto, e deveria ter o ícone dele")** - cada item passou de "abrir a pasta" pra "rodar o `.vbs` que sobe o processo escondido" (registrado como app manual) + ganhou o ícone oficial do projeto (`E:\Downloads\Icones`); IRIS/PANDORA continuam abrindo a pasta (sem inicializador possível pros 2). ECHO/MOIRAI/HESTIA ganharam `.vbs` novo nessa mesma mudança - não existia nenhum antes. Ver `docs/ARQUITETURA.md`.
 - Botão "Instalar integração com a GAIA" (Configurações → Preferências → Plugins), quando nenhum plugin está registrado - instala `plugins/iris_plugin_gaia` via `uv pip install -e` sem precisar de terminal.
-- `AnimacoesVTSProvider`/`FuncoesGaiaProvider`/`AnimeTrackerProvider` (plugin `iris_plugin_gaia`) saem do estado de stub - passam a chamar endpoints HTTP novos do lado da GAIA (porta 8765 do overlay pra Animações; porta 8766 nova, sempre ativa, pra Funções da Gaia e Anime Tracker). Ver `ARQUITETURA.md` e `plugins/iris_plugin_gaia/TODO.md`.
+- `AnimacoesVTSProvider`/`FuncoesGaiaProvider`/`AnimeTrackerProvider` (plugin `iris_plugin_gaia`) saem do estado de stub - passam a chamar endpoints HTTP novos do lado da GAIA (porta 8765 do overlay pra Animações; porta 8766 nova, sempre ativa, pra Funções da Gaia e Anime Tracker). Ver `docs/ARQUITETURA.md` e `plugins/iris_plugin_gaia/docs/TODO.md`.
 - Guarda de instância única (porta 8767 local, mesmo padrão de `_garantir_instancia_unica` da GAIA) - a GAIA agora pode lançar o IRIS sozinha (Menu Radial migrado pra consumir o IRIS em vez de manter cópia própria), então rodar duas instâncias por engano (manual + lançada pela GAIA) passou a ser um risco real, não só teórico.
 - **Novo pacote `plugins/iris_plugin_moirai`** (2026-08-24) - `AnimeTrackerProvider` saiu de `iris_plugin_gaia` pra aqui, porque o Assistente de Animes deixou de ser hospedado pela GAIA (agora processo próprio, Project MOIRAI, porta 8768). Mesmo contrato HTTP de sempre, sobrescrevível via `IRIS_MOIRAI_URL` - registrado em `iris/main.py::_PLUGINS_OPCIONAIS` junto com `iris_plugin_gaia`. Validado rodando os 2 processos juntos (IRIS + MOIRAI), provider respondendo com dados reais.
 - **Fase 2 do MOIRAI (2026-08-24)**: `POST /anime/adicionar` do lado do MOIRAI parou de disparar o download sozinho (agora é `POST /anime/baixar_pendentes`, chamada separada) - `AnimeTrackerProvider.executar` (item "Adicionar Anime") passou a chamar os 2 endpoints em sequência, mesmo comportamento final de sempre pro usuário.
 - **Anime Tracker: só "Para assistir" + capa como ícone (2026-08-24)** - a lista de subitens passou a vir de `GET /anime/para_assistir` (só quem já tem episódio baixado, evita clique morto), e cada anime ganhou a própria capa como ícone em vez do emoji "🎬" genérico pra todo mundo - baixada 1x (via MOIRAI, cacheada localmente) em background, nunca travando a abertura do popup. Motivou o método opcional `icone_para_subitem` novo em `ActionProvider` (`iris/plugins/base.py`), disponível pra qualquer provider futuro que precise de ícone dinâmico por subitem.
 
+### Alterado
+
+- Ícone da bandeja do sistema (`assets/icones/menu_radial_botao.png`) trocado pela arte oficial nova do IRIS.
+- **Categoria "🎬 Anime Tracker" renomeada pra "🎬 Watchlist"** (2026-08-30, pedido do usuário) - só o rótulo (`AnimeTrackerProvider.rotulo_categoria`) mudou, `id`/classe continuam iguais. Rótulo antigo salvo em `favoritos`/`uso` migrado automaticamente no próximo boot, sem perder posição no círculo nem o histórico de uso. Ver `docs/ARQUITETURA.md`.
+
 ### Corrigido
+
+- **TODO de testes atualizado para o estado real** (2026-09-07): a documentação deixou de afirmar que não existia nenhum teste automatizado depois da inclusão do teste isolado do plugin MOIRAI. A pendência permanece aberta e agora delimita corretamente o que falta cobrir: core, hotkey, popup, clique e arraste.
+- **Pendência obsoleta do ícone removida do TODO** (2026-09-07): o arquivo ainda dizia que o IRIS usava a imagem genérica herdada da GAIA, embora `assets/icones/menu_radial_botao.png` já tenha sido substituído pela arte oficial e essa troca já estivesse registrada neste changelog.
 - **Cache stale em `radial_menu.py` engolia edição feita por fora (2026-09-06)**
   - achado investigando "adicionei o SIREN na categoria Projects, mas ele
     sumiu de novo" - `_carregar()` guardava o dict inteiro num `_cache` de
@@ -39,34 +52,30 @@ foi documentada retroativamente; o histórico versionado começa em `0.1.0`.
     editar o arquivo por fora e chamar `obter_categorias()` de novo, no
     MESMO processo Python, já reflete a edição (antes não refletia).
 
-### Alterado
-- Ícone da bandeja do sistema (`assets/icones/menu_radial_botao.png`) trocado pela arte oficial nova do IRIS.
-- **Categoria "🎬 Anime Tracker" renomeada pra "🎬 Watchlist"** (2026-08-30, pedido do usuário) - só o rótulo (`AnimeTrackerProvider.rotulo_categoria`) mudou, `id`/classe continuam iguais. Rótulo antigo salvo em `favoritos`/`uso` migrado automaticamente no próximo boot, sem perder posição no círculo nem o histórico de uso. Ver `ARQUITETURA.md`.
-
-## [0.2.1] - 2026-08-15: Segurança
+## [0.2.1] - 2026-08-15
 
 ### Segurança
 - Repositório passou a ser público - `.gitignore` agora exclui `.env` explicitamente (só `.env.example`, sem dado real, era versionado). Conferido o histórico completo do Git antes da publicação: nenhuma chave/token real chegou a ser commitado em nenhum momento.
 
-## [0.2.0] - 2026-08-15: Corrige popup bloqueado, aninhamento de categorias e renderização parcial
+## [0.2.0] - 2026-08-15
 
-### Novidades
+### Adicionado
 - Botão "Importar de outro menu_radial_config.json..." na aba Pastas.
 - Aba Categorias permite aninhar pastas E outras categorias como itens (o motor do popup já suportava aninhamento desde sempre, só a tela de Configurações não expunha a opção).
 - Margem do popup passou a ser dinâmica, calculada pela profundidade REALMENTE alcançável a partir dos favoritos atuais - sem nenhuma categoria favoritada, o popup abre exatamente onde o cursor está, sem margem sobrando.
 
-### Correções
+### Corrigido
 - Popup radial ficava travado (aparecia mas não recebia clique nenhum) sempre que a tela de Configurações estava aberta - `janela.exec()` sempre vira modal de aplicação independente da flag configurada; trocado por `.show()` não-modal.
 - Eixo Y do popup ignorava a posição real do cursor, sempre abrindo perto do centro vertical do monitor.
 - Anel do popup renderizava só 1 fatia (a favorita sob o cursor) em vez das 4, especificamente ao abrir o popup logo depois de interagir com a tela de Configurações. **Causa raiz real**: o próprio hotkey que abre o popup termina em Espaço (`Ctrl+Alt+Espaço`) - esse Espaço físico às vezes vaza pro popup recém-focado como um `keyPressEvent` normal, e o código tratava qualquer espaço digitado como início de busca, filtrando os favoritos pra só os que têm espaço no nome. Corrigido ignorando espaço como primeiro caractere do filtro. Três tentativas anteriores de "consertar composição do DWM" (raise+repaint, nudge de posição, hide+show) foram um beco sem saída - revertidas na mesma correção, não existia bug de composição nenhum.
 
-## [0.1.1] - 2026-08-15: Paleta e limpeza
+## [0.1.1] - 2026-08-15
 
-### Correções
+### Corrigido
 - Paleta de cores do porte inicial tinha um acento ciano que não existe na identidade visual da GAIA - revertido pro acento dourado e pras cores originais do popup.
 - Removido o toggle de automação de apps (kill-switch) herdado da GAIA - lá existe pra impedir a LLM de agir sozinha; não fazia sentido pro clique manual num favorito do IRIS, que já é sempre intencional.
 
-## [0.1.0] - 2026-08-15: Inicialização sem console
+## [0.1.0] - 2026-08-15
 
-### Novidades
+### Adicionado
 - `iniciar_iris.bat` + `iniciar_iris_oculto.vbs` + `criar_atalho_desktop.vbs` (mesmo padrão de inicialização sem console do Project ARGUS).
