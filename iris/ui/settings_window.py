@@ -514,6 +514,11 @@ class JanelaConfiguracoes(ModalBase):
                 disponivel = provider.esta_disponivel()
                 status = "disponível agora" if disponivel else "instalado, indisponível agora"
                 layout.addWidget(criar_descricao(f"• {provider.rotulo_categoria}  ({provider.id})  -  {status}"))
+                capacidades = ", ".join(sorted(provider.capacidades())) or "sem efeito externo declarado"
+                layout.addWidget(criar_descricao(
+                    f"Capacidades: {capacidades}. Timeout declarado: "
+                    f"{provider.tempo_limite_segundos:g}s."
+                ))
 
         layout.addStretch(1)
         return widget

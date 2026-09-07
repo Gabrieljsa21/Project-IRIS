@@ -7,11 +7,22 @@ conhece nenhum plugin especifico em tempo de import."""
 
 _providers = []
 
+from iris.plugins.base import CAPACIDADES_CONHECIDAS
+
 
 def registrar_provider(provider):
     """Idempotente por `id` - registrar de novo o mesmo id SUBSTITUI a
     instância antiga (útil se `main.py` recarregar plugins), nunca duplica a
     categoria no popup."""
+    capacidades = set(provider.capacidades())
+    desconhecidas = capacidades - CAPACIDADES_CONHECIDAS
+    if desconhecidas:
+        raise ValueError(
+            f"Provider '{provider.id}' declarou capacidades desconhecidas: "
+            f"{', '.join(sorted(desconhecidas))}"
+        )
+    if float(provider.tempo_limite_segundos) <= 0:
+        raise ValueError(f"Provider '{provider.id}' precisa declarar timeout positivo.")
     global _providers
     _providers = [p for p in _providers if p.id != provider.id] + [provider]
 
@@ -46,3 +57,17 @@ def provider_por_categoria(rotulo_categoria):
         if provider.rotulo_categoria == rotulo_categoria:
             return provider
     return None
+
+
+def executar_provider(provider, item, confirmar=None):
+    """Aplica o portão de confirmação e executa uma ação do provider.
+
+    ``confirmar`` recebe a mensagem declarada pelo plugin. A ausência de um
+    callback bloqueia uma ação sensível, o que mantém consumidores futuros em
+    fail-closed.
+    """
+    mensagem = provider.confirmacao_para(item)
+    if mensagem and (confirmar is None or not confirmar(mensagem)):
+        return False
+    provider.executar(item)
+    return True

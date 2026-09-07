@@ -3,7 +3,7 @@
 (favoritos SEMPRE visíveis no anel mais interno; clicar numa categoria empurra
 mais um anel pra fora, sem fechar os anteriores) e cores vivas só na fatia em
 destaque. Portado de `Project G.A.I.A/assistant/ui/menu_radial_qt.py` (ver
-`ARQUITETURA.md` na raiz do repo pro histórico da extração e os 4 pontos de
+`docs/ARQUITETURA.md` na raiz do repo pro histórico da extração e os 4 pontos de
 acoplamento com a GAIA que saíram daqui).
 
 Este popup é o CORE do IRIS - zero dependência de GAIA. Categorias extras
@@ -16,7 +16,7 @@ nunca importa nada de um plugin específico.
 Disparado pelo hotkey GLOBAL (Ctrl+Alt+Espaço, registrado em `iris/main.py`)
 via `mostrar_menu_radial_qt()` - chamado na thread do hook de teclado, por
 isso `main.py` marshalla a chamada pra thread do Qt via `Signal.emit()` antes
-de chamar isto (mesmo padrão documentado em `ARQUITETURA.md`)."""
+de chamar isto (mesmo padrão documentado em `docs/ARQUITETURA.md`)."""
 import math
 import os
 import threading
@@ -33,6 +33,7 @@ import iris.core.radial_menu as radial_menu
 import iris.core.app_launcher as app_launcher_mod
 import iris.core.hardware_monitor as hardware_monitor
 from iris.plugins import registry as plugin_registry
+from iris.ui.qt_widgets import confirmar_acao
 
 
 # ---------------------------------------------------------------------------
@@ -844,7 +845,15 @@ class RadialMenuQt(QWidget):
         provider = plugin_registry.provider_por_categoria(categoria_pai)
         if provider:
             try:
-                provider.executar(item)
+                plugin_registry.executar_provider(
+                    provider,
+                    item,
+                    confirmar=lambda mensagem: confirmar_acao(
+                        self,
+                        "Confirmar ação do plugin",
+                        mensagem,
+                    ),
+                )
             except Exception as e:
                 print(f" [SISTEMA] Menu Radial: erro executando '{item}' via plugin '{provider.id}': {e}")
             return
