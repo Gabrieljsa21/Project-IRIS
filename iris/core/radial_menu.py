@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Menu Radial - persistência de dados (portado de `Project G.A.I.A/assistant/
-features/radial_menu/radial_menu.py`, 2026-08 - ver `ARQUITETURA.md` na raiz
+features/radial_menu/radial_menu.py`, 2026-08 - ver `docs/ARQUITETURA.md` na raiz
 do repo pro histórico da extração). Este módulo é só a PERSISTÊNCIA (dado
 puro, sem nenhuma dependência de Qt) - a renderização do popup mora em
 `iris/ui/menu_radial_qt.py`, o app launcher genérico em
@@ -90,9 +90,14 @@ FAVORITOS_PADRAO = ["bloco de notas", "calculadora", "youtube", "navegador"]
 #
 # `caminho_launcher=None` marca essas 2 exceções (usa `_PASTA_GAIA_EXISTENTE`/
 # `caminho` como pasta em vez de registrar um app). `icone=None` marca projeto
-# sem arte oficial ainda (ECHO/GAIA/PANDORA/SIREN não têm arquivo em
-# `E:\Downloads\Icones` - GAIA tem ícone PRÓPRIO em outro lugar, ver abaixo;
-# ECHO/PANDORA/SIREN ficam com o emoji padrão até existir arte).
+# sem arte oficial ainda - GAIA tem ícone PRÓPRIO em outro lugar, ver abaixo.
+# ECHO/PANDORA/SIREN ganharam arte em `E:\Downloads\Icones` só em 2026-09-06/07
+# (pedido do usuário: "coloquei os ícones dos projetos que faltavam... já
+# insere no Iris") - como a categoria "Projects" já tinha sido criada antes
+# (seed roda só 1x, `categoria_projetos_criada_v2`), editar só isso aqui NÃO
+# reaplica o ícone sozinho pros itens já existentes - foi preciso um script
+# avulso chamando `definir_icone_customizado_arquivo` direto pros 3 nomes
+# (mesmo texto de item já salvo: "ECHO", "📁 PANDORA", "SIREN").
 NOME_CATEGORIA_PROJETOS = "Projects"
 NOME_PASTA_GAIA = "Project G.A.I.A"
 ICONE_GAIA = r"C:\Workspace\Project G.A.I.A\assistant\assets\app_theme.ico"
@@ -100,13 +105,13 @@ ICONE_GAIA = r"C:\Workspace\Project G.A.I.A\assistant\assets\app_theme.ico"
 # (nome, pasta_do_projeto, caminho_launcher_ou_None, caminho_icone_ou_None)
 PROJETOS_PADRAO = [
     ("ARGUS", r"C:\Workspace\Project-ARGUS", r"C:\Workspace\Project-ARGUS\iniciar_argus_oculto.vbs", r"E:\Downloads\Icones\Argus.png"),
-    ("ECHO", r"C:\Workspace\Project-ECHO", r"C:\Workspace\Project-ECHO\iniciar_echo_oculto.vbs", None),
+    ("ECHO", r"C:\Workspace\Project-ECHO", r"C:\Workspace\Project-ECHO\iniciar_echo_oculto.vbs", r"E:\Downloads\Icones\Echo.png"),
     ("ERIS", r"C:\Workspace\Project-ERIS", r"C:\Workspace\Project-ERIS\iniciar_eris_oculto.vbs", r"E:\Downloads\Icones\Eris.png"),
     ("HESTIA", r"C:\Workspace\Project-HESTIA", r"C:\Workspace\Project-HESTIA\iniciar_hestia_oculto.vbs", r"E:\Downloads\Icones\Hestia.png"),
     ("IRIS", r"C:\Workspace\Project-IRIS", None, r"E:\Downloads\Icones\Iris.png"),
     ("MOIRAI", r"C:\Workspace\Project-MOIRAI", r"C:\Workspace\Project-MOIRAI\iniciar_moirai_oculto.vbs", r"E:\Downloads\Icones\Moirai.png"),
-    ("PANDORA", r"C:\Workspace\Project-PANDORA", None, None),
-    ("SIREN", r"C:\Workspace\Project-SIREN", r"C:\Workspace\Project-SIREN\iniciar_siren_oculto.vbs", None),
+    ("PANDORA", r"C:\Workspace\Project-PANDORA", None, r"E:\Downloads\Icones\Pandora.png"),
+    ("SIREN", r"C:\Workspace\Project-SIREN", r"C:\Workspace\Project-SIREN\iniciar_siren_oculto.vbs", r"E:\Downloads\Icones\Siren.png"),
 ]
 
 PERFIL_PADRAO = "Geral"
