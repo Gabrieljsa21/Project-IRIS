@@ -22,12 +22,15 @@ o plugin (nunca derruba o core).
   assistir/<titulo>` abre o próximo episódio baixado.
 - **Capa como ícone de cada anime** (2026-08-24, pedido do usuário: "mostrar
   a capa do anime em vez de icone generico") - usa `icone_para_subitem`
-  (novo método opcional em `ActionProvider`, ver `ARQUITETURA.md` do repo
+  (novo método opcional em `ActionProvider`, ver `docs/ARQUITETURA.md` do repo
   raiz), baixando a imagem via `GET /anime/capa/<chave>?url=<capa_url>` (o
   MOIRAI devolve os BYTES, nunca um caminho - processo/pasta diferentes) e
   cacheando em `data/moirai_capas_cache/` do lado do IRIS. Download sempre
   em BACKGROUND (nunca dentro de `listar_subitens`, que travaria o popup
   até a rede responder) - o item aparece na hora com o emoji "🎬" e troca
   pra capa sozinho assim que o download termina (repaint natural do popup).
+- **Abrir pasta de downloads** - `GET /pasta_downloads` consulta o caminho
+  configurado no MOIRAI e abre a pasta local pelo item "📁 Abrir pasta de
+  downloads". O item continua disponível mesmo quando não há episódio pronto.
 
-Ver `TODO.md` pro que ainda falta.
+Ver `docs/TODO.md` pro que ainda falta.

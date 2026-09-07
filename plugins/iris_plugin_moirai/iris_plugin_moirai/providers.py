@@ -33,6 +33,7 @@ from iris.plugins.base import ActionProvider
 URL_BASE_MOIRAI = os.environ.get("IRIS_MOIRAI_URL", "http://127.0.0.1:8768")
 
 _ITEM_ACAO_ADICIONAR_ANIME = "➕ Adicionar Anime"
+_ITEM_ABRIR_PASTA_DOWNLOADS = "📁 Abrir pasta de downloads"
 
 PASTA_CAPAS_CACHE = os.path.join("data", "moirai_capas_cache")
 
@@ -93,6 +94,15 @@ class AnimeTrackerProvider(ActionProvider):
     # exibição.
     id = "moirai_anime_tracker"
     rotulo_categoria = "🎬 Watchlist"
+    tempo_limite_segundos = 30.0
+
+    def capacidades(self):
+        return {"rede", "ler_arquivo", "gravar_arquivo", "abrir_processo"}
+
+    def confirmacao_para(self, item):
+        if item == _ITEM_ACAO_ADICIONAR_ANIME:
+            return "Adicionar o anime copiado e iniciar os downloads pendentes agora?"
+        return None
 
     def __init__(self):
         self._icones_por_subitem = {}
@@ -107,10 +117,9 @@ class AnimeTrackerProvider(ActionProvider):
         except Exception:
             animes = []
 
+        itens = [_ITEM_ACAO_ADICIONAR_ANIME, _ITEM_ABRIR_PASTA_DOWNLOADS]
         if not animes:
-            return ["ℹ️ Nenhum anime pronto pra assistir agora"]
-
-        itens = [_ITEM_ACAO_ADICIONAR_ANIME]
+            return itens + ["ℹ️ Nenhum anime pronto pra assistir agora"]
         for anime in animes:
             item = f"🎬 {anime.get('titulo', '')}"
             itens.append(item)
@@ -131,6 +140,20 @@ class AnimeTrackerProvider(ActionProvider):
         return self._icones_por_subitem.get(item)
 
     def executar(self, item):
+        if item == _ITEM_ABRIR_PASTA_DOWNLOADS:
+            def _abrir_pasta():
+                try:
+                    with urllib.request.urlopen(URL_BASE_MOIRAI + "/pasta_downloads", timeout=2) as resp:
+                        caminho = json.loads(resp.read()).get("caminho", "")
+                    if caminho and os.path.isdir(caminho):
+                        os.startfile(caminho)
+                    else:
+                        print(" [SISTEMA] IRIS (plugin MOIRAI): a pasta de downloads configurada não existe.")
+                except Exception:
+                    print(" [SISTEMA] IRIS (plugin MOIRAI): não consegui abrir a pasta - confira se o MOIRAI está rodando.")
+            threading.Thread(target=_abrir_pasta, daemon=True).start()
+            return
+
         if item == _ITEM_ACAO_ADICIONAR_ANIME:
             link = QGuiApplication.clipboard().text().strip()
             if not link.lower().startswith(("http://", "https://")):
