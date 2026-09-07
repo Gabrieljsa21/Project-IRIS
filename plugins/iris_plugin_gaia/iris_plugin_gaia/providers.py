@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Os 3 `ActionProvider` que conectam o IRIS à GAIA - todos funcionais hoje,
-ver `TODO.md` deste pacote pro detalhe de cada um. O 4º (`AnimeTrackerProvider`)
-mudou pra `iris_plugin_moirai` em 2026-08-24 (ver esse pacote/ARQUITETURA.md)."""
+ver `docs/TODO.md` deste pacote pro detalhe de cada um. O 4º (`AnimeTrackerProvider`)
+mudou pra `iris_plugin_moirai` em 2026-08-24 (ver esse pacote/docs/ARQUITETURA.md)."""
 
 import json
 import os
@@ -21,7 +21,7 @@ URL_BASE_OVERLAY = os.environ.get("IRIS_GAIA_OVERLAY_URL", "http://127.0.0.1:876
 # Servidor novo (2026-08-21) pra "Funções da Gaia" - roda no PROCESSO
 # PRINCIPAL da GAIA (`integrations/iris_bridge.py`), sempre ativo, diferente
 # do 8765 acima (que só sobe se o Avatar Virtual estiver ligado). Ver
-# `TODO.md` deste pacote.
+# `docs/TODO.md` deste pacote.
 URL_BASE_BRIDGE = os.environ.get("IRIS_GAIA_BRIDGE_URL", "http://127.0.0.1:8766")
 
 # Mesmo mapa rótulo -> rota de `Project G.A.I.A/assistant/ui/menu_radial_qt.py`
@@ -62,6 +62,15 @@ class AvatarOverlayProvider(ActionProvider):
 
     id = "gaia_avatar_overlay"
     rotulo_categoria = "🖥️ Avatar (Overlay)"
+    tempo_limite_segundos = 2.0
+
+    def capacidades(self):
+        return {"rede", "controlar_janela"}
+
+    def confirmacao_para(self, item):
+        if item == "❌ Fechar Overlay":
+            return "Fechar o Avatar Overlay da GAIA agora?"
+        return None
 
     def esta_disponivel(self):
         return _porta_responde(URL_BASE_OVERLAY)
@@ -93,6 +102,10 @@ class AnimacoesVTSProvider(ActionProvider):
 
     id = "gaia_animacoes_vts"
     rotulo_categoria = "🎭 Animações do VTube Studio"
+    tempo_limite_segundos = 2.0
+
+    def capacidades(self):
+        return {"rede", "controlar_janela"}
 
     def __init__(self):
         self._rotulo_para_arquivo = {}
@@ -137,6 +150,10 @@ class FuncoesGaiaProvider(ActionProvider):
 
     id = "gaia_funcoes_gaia"
     rotulo_categoria = "⚙️ Funções da Gaia"
+    tempo_limite_segundos = 2.0
+
+    def capacidades(self):
+        return {"rede", "controlar_janela"}
 
     def esta_disponivel(self):
         return _porta_responde(URL_BASE_BRIDGE)
@@ -163,4 +180,4 @@ class FuncoesGaiaProvider(ActionProvider):
 
 # 🔥 `AnimeTrackerProvider` mudou pra `iris_plugin_moirai` em 2026-08-24 - o
 # Assistente de Animes deixou de ser hospedado pela GAIA (processo próprio,
-# Project-MOIRAI, porta 8768) - ver ARQUITETURA.md e o TODO.md do plugin novo.
+# Project-MOIRAI, porta 8768) - ver docs/ARQUITETURA.md e o docs/TODO.md do plugin novo.

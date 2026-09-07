@@ -8,6 +8,15 @@ consumidor real hoje."""
 from abc import ABC, abstractmethod
 
 
+CAPACIDADES_CONHECIDAS = {
+    "rede",
+    "abrir_processo",
+    "ler_arquivo",
+    "gravar_arquivo",
+    "controlar_janela",
+}
+
+
 class ActionProvider(ABC):
     """Cada instancia vira UMA categoria extra no anel de favoritos, exibida
     só quando `esta_disponivel()` responde True. `id` precisa ser unico entre
@@ -17,6 +26,25 @@ class ActionProvider(ABC):
 
     id: str
     rotulo_categoria: str
+    tempo_limite_segundos: float = 10.0
+
+    def capacidades(self) -> set[str]:
+        """Efeitos externos que o provider pode realizar.
+
+        O default vazio mantém plugins antigos em modo restrito e faz o
+        registry rejeitar capacidades desconhecidas. Disponibilidade informa
+        se o serviço responde; esta declaração informa o que o plugin pode
+        fazer quando o usuário executa uma ação.
+        """
+        return set()
+
+    def confirmacao_para(self, item: str) -> str | None:
+        """Mensagem de confirmação para uma ação sensível, ou ``None``."""
+        return None
+
+    def cancelar(self) -> None:
+        """Hook cooperativo opcional para operações futuras canceláveis."""
+        return None
 
     @abstractmethod
     def esta_disponivel(self) -> bool:

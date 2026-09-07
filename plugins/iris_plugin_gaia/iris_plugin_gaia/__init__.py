@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Plugin opcional que conecta o IRIS à GAIA (`Project G.A.I.A/assistant`,
 processo separado) - implementa os 3 pontos de acoplamento que ainda são da
-GAIA (ver `ARQUITETURA.md` do repo `Project-IRIS` e o `TODO.md` deste
+GAIA (ver `docs/ARQUITETURA.md` do repo `Project-IRIS` e o `docs/TODO.md` deste
 pacote; o 4º ponto, Anime Tracker, mudou pra `iris_plugin_moirai` em
 2026-08-24). Só quem tem a GAIA rodando instala isto (`pip install -e
 plugins/iris_plugin_gaia`, com `iris` já instalado no mesmo venv) - o core
