@@ -12,6 +12,13 @@ foi documentada retroativamente; o histórico versionado começa em `0.1.0`.
 
 ## [Unreleased]
 
+### Alterado
+
+- **Ícone da GAIA nítido (2026-09-26)** - o ícone da GAIA na categoria Projects era o `app_theme.ico`, que tem 16, 32, 48 e 256 px; o Qt lia o de 16 px e ampliava para 64 px no menu, e ele ficava desfocado. Agora usa o `app_theme.png` da GAIA (1254 px, mesma arte): no padrão do código (`ICONE_GAIA`, `iris/core/radial_menu.py`) e no ícone personalizado salvo (`assets/icones_customizados/gaia.png` em `data/menu_radial_config.json`).
+
+- **Ícone do SIREN de volta ao emblema original (2026-09-26, pedido do usuário)** - `assets/icones_customizados/siren.png` (o ícone da categoria Projects, que tem prioridade sobre o `E:\Downloads\Icones\Siren.png` de `PROJETOS_PADRAO`) volta a ser a arte completa, no lugar do recorte do rosto feito no PR #28. O recorte ficou guardado como `siren_recortado_old.png`.
+- **ECHO e PANDORA também de volta ao emblema original (mesmo dia)** - `echo.png` e `pandora.png` voltam a ser as artes completas de `E:\Downloads\Icones\`, no lugar dos recortes do PR #28 (guardados como `*_recortado_old.png`).
+
 ### Adicionado
 
 - **Permissões declarativas e confirmação de plugins (2026-09-07)** - `ActionProvider` agora declara capacidades de rede, processo, leitura/escrita de arquivos e controle de janela, além de timeout positivo e cancelamento opcional. O registry rejeita capacidades desconhecidas; ações sensíveis falham fechadas sem confirmação explícita. Providers oficiais foram classificados e a tela de Plugins mostra suas capacidades e timeout. O item concluído foi removido de `docs/TODO.md`.
