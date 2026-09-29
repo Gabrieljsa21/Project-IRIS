@@ -100,7 +100,9 @@ FAVORITOS_PADRAO = ["bloco de notas", "calculadora", "youtube", "navegador"]
 # (mesmo texto de item já salvo: "ECHO", "📁 PANDORA", "SIREN").
 NOME_CATEGORIA_PROJETOS = "Projects"
 NOME_PASTA_GAIA = "Project G.A.I.A"
-ICONE_GAIA = r"C:\Workspace\Project G.A.I.A\assistant\assets\app_theme.ico"
+# PNG em alta resolução, não o .ico (2026-09-26): o .ico tem 16/32/48/256 px e
+# o Qt lia o de 16 px, ampliado pra 64 px no menu - a GAIA ficava desfocada.
+ICONE_GAIA = r"C:\Workspace\Project G.A.I.A\assistant\assets\app_theme.png"
 
 # (nome, pasta_do_projeto, caminho_launcher_ou_None, caminho_icone_ou_None)
 PROJETOS_PADRAO = [
