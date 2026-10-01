@@ -14,6 +14,8 @@ foi documentada retroativamente; o histórico versionado começa em `0.1.0`.
 
 ### Alterado
 
+- **Backups dos ícones recortados (2026-10-01)** - `echo_recortado_old.png`, `pandora_recortado_old.png` e `siren_recortado_old.png` (`assets/icones_customizados/`) guardam as versões recortadas de ECHO, PANDORA e SIREN que a PR #32 trocou pelo emblema original. Ficam só como histórico, nada no código aponta pra eles.
+
 - **Ícone da GAIA nítido (2026-09-26)** - o ícone da GAIA na categoria Projects era o `app_theme.ico`, que tem 16, 32, 48 e 256 px; o Qt lia o de 16 px e ampliava para 64 px no menu, e ele ficava desfocado. Agora usa o `app_theme.png` da GAIA (1254 px, mesma arte): no padrão do código (`ICONE_GAIA`, `iris/core/radial_menu.py`) e no ícone personalizado salvo (`assets/icones_customizados/gaia.png` em `data/menu_radial_config.json`).
 
 - **Ícone do SIREN de volta ao emblema original (2026-09-26, pedido do usuário)** - `assets/icones_customizados/siren.png` (o ícone da categoria Projects, que tem prioridade sobre o `E:\Downloads\Icones\Siren.png` de `PROJETOS_PADRAO`) volta a ser a arte completa, no lugar do recorte do rosto feito no PR #28. O recorte ficou guardado como `siren_recortado_old.png`.
