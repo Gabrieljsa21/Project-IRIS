@@ -1,6 +1,6 @@
 [project]
 name = "iris"
-version = "0.1.0"
+version = "0.3.0"
 description = "Launcher radial genérico pra Windows (apps, pastas, sites, atalhos, jogos Steam) - popup acionado por hotkey global, com sistema de plugins opcional."
 requires-python = ">=3.11"
 dependencies = [
