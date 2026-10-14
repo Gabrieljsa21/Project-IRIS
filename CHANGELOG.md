@@ -12,6 +12,8 @@ foi documentada retroativamente; o histórico versionado começa em `0.1.0`.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-14
+
 ### Alterado
 
 - **Backups dos ícones recortados (2026-10-01)** - `echo_recortado_old.png`, `pandora_recortado_old.png` e `siren_recortado_old.png` (`assets/icones_customizados/`) guardam as versões recortadas de ECHO, PANDORA e SIREN que a PR #32 trocou pelo emblema original. Ficam só como histórico, nada no código aponta pra eles.
