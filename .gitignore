@@ -17,6 +17,10 @@ dist/
 data/*.json
 !data/menu_radial_config.example.json
 data/moirai_capas_cache/
+data/*.log*
+data/*.bak
+data/*.tmp
+data/*.corrompido-*
 
 # Editores / SO
 .vscode/

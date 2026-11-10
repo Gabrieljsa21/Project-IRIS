@@ -2,17 +2,16 @@
 
 ## Pendências do core (podem ser resolvidas só neste repo)
 
-- Cobertura automatizada ainda é parcial: o plugin do MOIRAI já possui teste
-  isolado do contrato HTTP/menu, mas o core, a hotkey e as interações do popup
-  (clique e arraste) ainda dependem de cobertura própria. Rodar o popup de
-  verdade continua pendente num ambiente com display interativo.
-- Tela de Configurações (`iris/ui/settings_window.py`) cobre CRUD básico
-  (favoritos/categorias/pastas/Steam/preferências) mas não replica toda a
-  riqueza do modal equivalente da GAIA (`ui/qt_modais/menu_radial.py`, não
-  portado - fora do escopo desta extração): sem gerenciamento de perfis
-  múltiplos na UI (a API em `core/radial_menu.py` já suporta,
-  `criar_perfil`/`remover_perfil`/`renomear_perfil`), sem editor de
-  apelidos/ícones customizados na UI (a API também já suporta).
+- Cobertura automatizada das INTERAÇÕES do popup (clique, arrasto com Alt,
+  teclado) ainda não está na suíte: `testes/` cobre persistência, descoberta
+  de projetos, geometria, atalho, busca e o contrato de plugins, tudo sem Qt.
+  As interações foram exercitadas por um roteiro fora da tela na 0.4.0, mas
+  ele não faz parte do `pytest` (precisa de `QApplication`; no CI rodaria com
+  `QT_QPA_PLATFORM=offscreen`).
+- A busca por digitação filtra só os anéis ABERTOS (favoritos + categorias
+  abertas). Um app que não está nos favoritos nem numa categoria aberta não
+  aparece. Busca global (todos os apps conhecidos, resultado num anel
+  próprio) daria mais valor ao teclado.
 - Manifesto de capacidades dos plugins (`iris/plugins/base.py`/`registry.py`,
   2026-09-07) não obriga um provider com capacidade sensível a implementar
   `confirmacao_para` (herda `None` da base e executa sem confirmação
@@ -30,6 +29,11 @@
   parecido de forma genérica (um plugin "empurrando" um item contextual pro
   anel de favoritos), precisa de um hook novo em `ActionProvider`
   (`iris/plugins/base.py`) - não existe hoje.
+- `iris/ui/menu_radial_qt.py` ainda concentra desenho e interação (cerca de
+  1.200 linhas). A geometria já saiu pra `geometria_radial.py`; separar o
+  desenho (`_desenhar_anel`, `_pintar`) é o próximo corte natural.
+- A tela de Configurações não mostra em qual modo o atalho está (nativo ou
+  compartilhado); hoje isso só aparece em `data/iris.log`.
 
 ## Sem pendência (decisões já resolvidas na extração)
 

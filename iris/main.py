@@ -1,50 +1,43 @@
 # -*- coding: utf-8 -*-
 """Entry point standalone do IRIS - sobe a própria `QApplication`, registra o
-hotkey global (Ctrl+Alt+Espaço, mesma tecla de sempre) e um ícone na bandeja
-do sistema com acesso à tela de Configurações. Roda inteiramente sozinho, sem
-nenhuma dependência da GAIA - se o pacote de plugin opcional
-`iris_plugin_gaia` estiver instalado (`pip install -e plugins/iris_plugin_gaia`),
-suas categorias aparecem automaticamente no popup quando a GAIA estiver de
-pé; sem o plugin instalado, o popup funciona igual, só sem essas categorias.
+atalho global (Ctrl+Alt+Espaço por padrão, configurável) e um ícone na
+bandeja do sistema com acesso à tela de Configurações. Roda inteiramente
+sozinho, sem nenhuma dependência da GAIA - plugins opcionais instalados
+(ver `_carregar_plugins`) acrescentam categorias ao popup quando o serviço
+deles está de pé; sem plugin nenhum, o popup funciona igual.
 
-Padrão de marshalling entre threads: `keyboard.add_hotkey` roda o callback na
-THREAD DO HOOK de teclado, nunca na thread do Qt - abrir/fechar um QWidget
-fora da thread dona dele é um bug clássico (trava intermitente, não erro
-imediato). `IrisApp` é um `QObject` com um `Signal` (`menu_radial_solicitado`)
-conectado a um slot que roda na GUI thread; `Signal.emit()` é seguro de
-chamar de qualquer thread (Qt enfileira a entrega sozinho quando emissor e
-receptor moram em threads diferentes) - mesmo padrão documentado em
-`docs/ARQUITETURA.md` (baseado no que `Project G.A.I.A/assistant/run.py` +
-`ui/qt_painel.py` já fazem, portado aqui de forma independente, sem importar
-nada de lá)."""
+Atalho global: `iris/ui/atalho_global.py` - `RegisterHotKey` do Windows, com
+o gancho da biblioteca `keyboard` de reserva quando a combinação já pertence
+a outro programa. Nos dois modos a chamada chega aqui já na thread do Qt."""
 import importlib
 import os
 import socket
 import sys
+import threading
+from importlib import metadata
 
-import keyboard
-from PySide6.QtCore import QObject, Signal, QTimer
+from PySide6.QtCore import QObject
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
+from iris.core import armazenamento, avisos
+from iris.core.atalho import ATALHO_PADRAO, descrever_atalho
+from iris.core.avisos import registro
 from iris.ui.qt_widgets import aplicar_estilo_global
 
-HOTKEY_MENU_RADIAL = "ctrl+alt+space"
+# Plugins: descobertos pelo grupo de entry points `iris.plugins` (cada plugin
+# declara no próprio `pyproject.toml` uma função `registrar`) - instalar um
+# plugin novo não exige editar o core. A lista abaixo é só compatibilidade:
+# pacotes instalados ANTES de declararem o entry point continuam carregando
+# pelo nome até serem reinstalados.
+GRUPO_ENTRY_POINTS = "iris.plugins"
+_PLUGINS_LEGADOS = ["iris_plugin_gaia", "iris_plugin_moirai"]
 
-# Pacotes de plugin OPCIONAIS a tentar importar/registrar no boot - nenhum
-# import direto (`iris_plugin_gaia`) aqui em cima, de propósito: o core nunca
-# pode falhar por causa de um plugin ausente/quebrado. `iris_plugin_moirai`
-# (2026-08-24) - Assistente de Animes extraído da GAIA pro Project-MOIRAI.
-_PLUGINS_OPCIONAIS = ["iris_plugin_gaia", "iris_plugin_moirai"]
-
-# 🔥 Instância única (2026-08-23) - mesmo padrão de `Project G.A.I.A/assistant/
-# run.py::_garantir_instancia_unica` (porta 8022 lá, portado aqui de forma
-# independente, sem importar nada de lá): reservar uma porta TCP local só
-# pra esta instância - se já estiver ocupada, outro IRIS já está rodando.
-# Ganhou importância real com a GAIA agora lançando o IRIS sozinha
-# (`integrations/iris_bridge.py::garantir_iris_rodando`) - sem essa guarda,
-# rodar `-m iris.main` uma segunda vez (manual ou numa corrida rara com a
-# GAIA) duplicava processo + ícone de bandeja + hotkey.
+# Instância única (2026-08-23): reservar uma porta TCP local só pra esta
+# instância - se já estiver ocupada, outro IRIS já está rodando. Importa
+# porque a GAIA também sobe o IRIS sozinha (`integrations/iris_bridge.py::
+# garantir_iris_rodando`); sem a guarda, uma segunda execução duplicava
+# processo, ícone de bandeja e atalho.
 PORTA_INSTANCIA_UNICA = 8767
 _socket_instancia_unica = None
 
@@ -55,30 +48,36 @@ def _garantir_instancia_unica():
     try:
         _socket_instancia_unica.bind(("127.0.0.1", PORTA_INSTANCIA_UNICA))
     except OSError:
-        print(
-            " [SISTEMA] Já existe uma instância do IRIS rodando "
-            f"(porta {PORTA_INSTANCIA_UNICA} ocupada) - encerrando esta pra não rodar em duplicidade."
-        )
+        registro.info("Já existe um IRIS rodando (porta %s ocupada); encerrando esta instância.", PORTA_INSTANCIA_UNICA)
         sys.exit(1)
 
 
 class IrisApp(QObject):
-    menu_radial_solicitado = Signal()
-
     def __init__(self):
         super().__init__()
-        self.menu_radial_solicitado.connect(self._mostrar_menu_radial)
         self.tray_icon = None
+        self.atalho = None
         self._janela_config = None
 
-    def _mostrar_menu_radial(self):
+    def alternar_menu_radial(self):
         from iris.ui.menu_radial_qt import mostrar_menu_radial_qt
-        mostrar_menu_radial_qt()
+        if mostrar_menu_radial_qt() == "sem_favoritos":
+            # Atalho sem nada pra mostrar não pode parecer quebrado: leva o
+            # usuário direto pra onde ele resolve.
+            avisos.avisar_usuario("Nenhum favorito ativo no menu. Abri as Configurações pra você escolher.")
+            self.abrir_configuracoes()
 
-    def solicitar_menu_radial(self):
-        """Chamado pelo hotkey global - roda na thread do hook de teclado,
-        nunca na thread do Qt."""
-        self.menu_radial_solicitado.emit()
+    def aplicar_atalho(self, texto):
+        """Registra o atalho e, se aceito, salva. Devolve (ok, mensagem) -
+        usado no boot e pela tela de Configurações."""
+        from iris.core import radial_menu
+        ok, resultado = self.atalho.registrar(texto)
+        if ok:
+            if radial_menu.obter_atalho() != resultado:
+                radial_menu.salvar_atalho(resultado)
+            if self.tray_icon is not None:
+                self.tray_icon.setToolTip(f"IRIS - {descrever_atalho(resultado)} abre o menu radial")
+        return ok, resultado
 
     def abrir_configuracoes(self):
         """Não-modal de propósito - `.exec()` deixaria o app inteiro (inclusive
@@ -87,10 +86,14 @@ class IrisApp(QObject):
         Python assim que a função retorna."""
         if self._janela_config is not None:
             self._janela_config.show()
+            self._janela_config.raise_()
             self._janela_config.activateWindow()
             return
         from iris.ui.settings_window import JanelaConfiguracoes
-        self._janela_config = JanelaConfiguracoes()
+        self._janela_config = JanelaConfiguracoes(
+            ao_mudar_atalho=self.aplicar_atalho,
+            atalho_em_uso=lambda: self.atalho.atalho_atual,
+        )
         self._janela_config.finished.connect(self._ao_fechar_configuracoes)
         self._janela_config.show()
 
@@ -98,15 +101,15 @@ class IrisApp(QObject):
         self._janela_config = None
 
     def montar_bandeja(self, app):
-        caminho_icone = os.path.join(os.path.dirname(__file__), "..", "assets", "icones", "menu_radial_botao.png")
+        caminho_icone = os.path.join(armazenamento.RAIZ_PROJETO, "assets", "icones", "menu_radial_botao.png")
         icone = QIcon(caminho_icone) if os.path.exists(caminho_icone) else app.style().standardIcon(app.style().SP_ComputerIcon)
 
         self.tray_icon = QSystemTrayIcon(icone)
-        self.tray_icon.setToolTip("IRIS - Ctrl+Alt+Espaço abre o menu radial")
+        self.tray_icon.setToolTip("IRIS")
 
         menu = QMenu()
         acao_menu = menu.addAction("Abrir menu radial agora")
-        acao_menu.triggered.connect(self._mostrar_menu_radial)
+        acao_menu.triggered.connect(self.alternar_menu_radial)
         acao_config = menu.addAction("Configurações...")
         acao_config.triggered.connect(self.abrir_configuracoes)
         menu.addSeparator()
@@ -118,32 +121,51 @@ class IrisApp(QObject):
             lambda motivo: self.abrir_configuracoes() if motivo == QSystemTrayIcon.DoubleClick else None
         )
         self.tray_icon.show()
+        avisos.definir_notificador(
+            lambda mensagem: self.tray_icon.showMessage("IRIS", mensagem, QSystemTrayIcon.Information, 6000)
+        )
 
 
-def _carregar_plugins_opcionais():
-    """Tenta importar cada pacote de `_PLUGINS_OPCIONAIS` e chamar sua função
-    `registrar()` - qualquer erro (pacote não instalado, ou instalado mas
-    quebrado) é silenciosamente ignorado, o IRIS core nunca deixa de subir
-    por causa de um plugin."""
-    for nome_pacote in _PLUGINS_OPCIONAIS:
+def _carregar_plugins():
+    """Chama o `registrar()` de cada plugin instalado. Qualquer erro (pacote
+    ausente ou quebrado) fica só no log - o core nunca deixa de subir por
+    causa de um plugin."""
+    carregados = set()
+    try:
+        pontos = list(metadata.entry_points(group=GRUPO_ENTRY_POINTS))
+    except Exception:
+        registro.exception("Falha ao listar entry points de plugins")
+        pontos = []
+    for ponto in pontos:
+        modulo = ponto.value.split(":", 1)[0]
         try:
-            modulo = importlib.import_module(nome_pacote)
-            registrar = getattr(modulo, "registrar", None)
+            ponto.load()()
+            carregados.add(modulo)
+            registro.info("Plugin '%s' registrado (entry point).", ponto.name)
+        except Exception:
+            registro.exception("Plugin '%s' falhou ao registrar", ponto.name)
+            carregados.add(modulo)
+    for nome_pacote in _PLUGINS_LEGADOS:
+        if nome_pacote in carregados:
+            continue
+        try:
+            registrar = getattr(importlib.import_module(nome_pacote), "registrar", None)
             if callable(registrar):
                 registrar()
-                print(f" [SISTEMA] IRIS: plugin '{nome_pacote}' registrado.")
+                registro.info("Plugin '%s' registrado.", nome_pacote)
         except ImportError:
             continue
-        except Exception as e:
-            print(f" [SISTEMA] IRIS: plugin '{nome_pacote}' instalado, mas falhou ao registrar: {e}")
+        except Exception:
+            registro.exception("Plugin '%s' instalado, mas falhou ao registrar", nome_pacote)
 
 
 def main():
+    avisos.configurar_registro()
     _garantir_instancia_unica()
-    os.makedirs("data", exist_ok=True)
 
     from iris.core import radial_menu
-    radial_menu.garantir_categoria_projetos_padrao()
+    from iris.plugins import registry as plugin_registry
+    from iris.ui.atalho_global import AtalhoGlobal
 
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
@@ -152,10 +174,28 @@ def main():
     iris_app = IrisApp()
     iris_app.montar_bandeja(app)
 
-    _carregar_plugins_opcionais()
+    try:
+        adicionados = radial_menu.sincronizar_categoria_projetos()
+        if adicionados:
+            avisos.avisar_usuario(f"Novo(s) em Projects: {', '.join(adicionados)}.")
+    except Exception:
+        registro.exception("Falha ao sincronizar a categoria Projects")
 
-    keyboard.add_hotkey(HOTKEY_MENU_RADIAL, iris_app.solicitar_menu_radial)
-    print(f" [SISTEMA] IRIS pronto - {HOTKEY_MENU_RADIAL} abre o menu radial. Ícone na bandeja pra Configurações/Sair.")
+    _carregar_plugins()
+    # Primeira checagem de disponibilidade em segundo plano - o primeiro
+    # popup já abre sabendo quais serviços estão de pé.
+    threading.Thread(target=plugin_registry.atualizar_disponibilidade, daemon=True).start()
+
+    iris_app.atalho = AtalhoGlobal(iris_app.alternar_menu_radial)
+    app.aboutToQuit.connect(iris_app.atalho.liberar)
+    atalho_salvo = radial_menu.obter_atalho()
+    ok, mensagem = iris_app.aplicar_atalho(atalho_salvo)
+    if not ok and atalho_salvo != ATALHO_PADRAO:
+        ok, _ = iris_app.aplicar_atalho(ATALHO_PADRAO)
+    if ok:
+        registro.info("IRIS pronto - %s abre o menu radial (modo %s).", iris_app.atalho.atalho_atual, iris_app.atalho.modo)
+    else:
+        avisos.avisar_usuario(f"{mensagem} Escolha outro em Configurações > Preferências; o menu continua disponível pelo ícone da bandeja.")
 
     sys.exit(app.exec())
 

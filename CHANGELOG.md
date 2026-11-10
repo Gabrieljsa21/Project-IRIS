@@ -12,6 +12,38 @@ foi documentada retroativamente; o histórico versionado começa em `0.1.0`.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-10
+
+### Corrigido
+
+- **Configuração corrompida não é mais sobrescrita pelo padrão** - um `menu_radial_config.json` ilegível caía num `except` genérico e o IRIS gravava a estrutura padrão por cima, apagando favoritos, categorias e contagem de uso. Agora a gravação é atômica (arquivo temporário + `os.replace`), a versão anterior fica em `.bak`, e um arquivo ilegível é renomeado para `.corrompido-<data>`: o IRIS restaura o `.bak` e avisa pela bandeja. O mesmo vale para `apps_manuais.json` (`iris/core/armazenamento.py`).
+- **Atualização de tela fora da thread do Qt** - as métricas de CPU/RAM/GPU chamavam `update()` do popup a partir de uma thread comum. O resultado agora volta por `Signal`.
+- **Avisos que ninguém via** - o IRIS roda em `pythonw`, então "app não encontrado", "pasta não configurada", "arrastar só funciona sem busca" e erro de plugin eram `print` no vazio. Agora aparecem em balão da bandeja e ficam em `data/iris.log` (`iris/core/avisos.py`).
+- **Clique abrindo o app errado** - o clique no menu usava a busca aproximada pelas duas últimas palavras, que podia achar outro app. O menu passou a exigir nome ou apelido idêntico (`find_app(..., exato=True)`).
+- **Dados dependiam da pasta de onde o IRIS era iniciado** - `data/` e `assets/icones_customizados` eram caminhos relativos ao diretório atual. Agora são ancorados na raiz do repositório.
+- **Atalho sem efeito com todos os favoritos desativados** - o atalho abre as Configurações e avisa, em vez de mostrar um popup vazio.
+
+### Alterado
+
+- **Popup sem leitura de disco por fatia** - cada repintura relia o JSON três vezes por fatia. A configuração fica em memória, validada por data de modificação e tamanho do arquivo (edição feita por fora continua sendo enxergada), e a repintura confere o disco uma vez só (`radial_menu.leitura_em_lote`). Medido com a configuração real: zero leituras de JSON em 30 repinturas e uma consulta ao disco por repintura, contra 17.
+- **Brilho das fatias em cache** - o traço com desfoque só é recalculado quando muda a fatia em destaque ou o quanto ela cresceu; relógio e métricas reaproveitam a imagem.
+- **Plugins não seguram mais a abertura do popup** - a disponibilidade é checada em paralelo e em segundo plano; o popup abre com o último resultado conhecido e se corrige quando a checagem termina. Categoria de plugin favoritada cujo serviço está parado some do anel até o serviço voltar, em vez de ficar como fatia sem ação.
+- **Categoria Projects descoberta sozinha** - saem do código a lista fixa de projetos e os caminhos `C:\Workspace\...` e `E:\Downloads\Icones\...`. A cada início o IRIS procura pastas `Project-*` ao lado do próprio repositório (ou na pasta configurada), acha o inicializador (`iniciar_*_oculto.vbs`, `iniciar_*.bat` ou `<NOME>.bat`) e acrescenta à categoria só o que ainda não conhecia. Item removido pelo usuário não volta. Na primeira execução desta versão entraram CHRONOS, HERMES, LOKI e MIDAS.
+- **Atalho global pelo `RegisterHotKey` do Windows** (`iris/ui/atalho_global.py`), sem gancho que observa todas as teclas. Quando outro programa já registrou a mesma combinação (caso real de `ctrl+alt+space` nesta máquina), o IRIS cai no modo compartilhado, com o gancho da biblioteca `keyboard`, e o atalho continua funcionando como antes.
+- **Plugins descobertos por entry points** (grupo `iris.plugins`, declarado no `pyproject.toml` de cada plugin). Instalar um plugin novo não exige editar o core. Os dois plugins já instalados continuam carregando pelo nome até serem reinstalados.
+- **Abertura de apps por `os.startfile`** no lugar de `start` com `shell=True`.
+- Geometria do popup (raios, ângulos, hit-test, paginação) extraída para `iris/ui/geometria_radial.py`, sem Qt.
+
+### Adicionado
+
+- **Teclado no popup** - setas escolhem a fatia do anel mais externo, Enter ativa, Backspace (sem busca digitada) volta um anel. Com busca digitada, Enter abre o primeiro resultado.
+- **Busca sem acento** - "calculo" encontra "Cálculo".
+- **Atalho configurável** em Configurações > Preferências, aplicado na hora. Aceita `ctrl`, `alt`, `shift`, `win` e uma tecla, com sinônimos ("Ctrl + Alt + Espaço").
+- **Perfis na tela de Configurações** - trocar, criar cópia, renomear e excluir (a API já existia).
+- **Aba Personalizar** - nome exibido e ícone (emoji ou imagem) de qualquer item (a API já existia).
+- **Pasta dos projetos e pasta de ícones** configuráveis em Preferências, com botão para procurar projetos na hora.
+- **Testes com `pytest`** (34: persistência, descoberta de projetos, geometria, atalho, busca, contrato de plugins) e **CI** no GitHub Actions (`.github/workflows/testes.yml`).
+
 ## [0.3.0] - 2026-10-14
 
 ### Alterado

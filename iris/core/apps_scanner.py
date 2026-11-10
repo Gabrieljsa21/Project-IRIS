@@ -12,10 +12,11 @@ tira do resultado, sem precisar de nenhuma lógica extra de remoção."""
 import os
 import re
 import glob
-import json
 import winreg
 
-ARQUIVO_ESCANEADOS = "data/apps_escaneados.json"
+from iris.core import armazenamento
+
+ARQUIVO_ESCANEADOS = armazenamento.caminho_dados("apps_escaneados.json")
 
 # Filtro best-effort pra atalhos que não são "o programa em si" (desinstalador,
 # licença, site de suporte) - a Steam não tem esse problema (appmanifest só
@@ -192,19 +193,13 @@ def escanear_atalhos_instalados():
 
 
 def _carregar_json():
-    if not os.path.exists(ARQUIVO_ESCANEADOS):
-        return {}
-    try:
-        with open(ARQUIVO_ESCANEADOS, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return {}
+    """Resultado de escaneamento é reconstruível: ausente ou ilegível vira {}."""
+    dados = armazenamento.ler_json_ou(ARQUIVO_ESCANEADOS, {})
+    return dados if isinstance(dados, dict) else {}
 
 
 def _salvar_json(dados):
-    os.makedirs(os.path.dirname(ARQUIVO_ESCANEADOS), exist_ok=True)
-    with open(ARQUIVO_ESCANEADOS, "w", encoding="utf-8") as f:
-        json.dump(dados, f, indent=2, ensure_ascii=False)
+    armazenamento.gravar_json_atomico(ARQUIVO_ESCANEADOS, dados)
 
 
 def escanear_tudo():

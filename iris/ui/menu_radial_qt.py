@@ -22,7 +22,7 @@ import os
 import threading
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QRectF, QTimer, QVariantAnimation, QEasingCurve
+from PySide6.QtCore import Qt, QRectF, QTimer, QVariantAnimation, QEasingCurve, Signal
 from PySide6.QtGui import (
     QPainter, QPainterPath, QColor, QConicalGradient, QRadialGradient, QFont,
     QPen, QBrush, QCursor, QGuiApplication, QImage, QPixmap,
@@ -32,53 +32,31 @@ from PySide6.QtWidgets import QWidget, QGraphicsBlurEffect, QGraphicsScene, QGra
 import iris.core.radial_menu as radial_menu
 import iris.core.app_launcher as app_launcher_mod
 import iris.core.hardware_monitor as hardware_monitor
+from iris.core import armazenamento
+from iris.core.avisos import avisar_usuario, registro
 from iris.plugins import registry as plugin_registry
+from iris.ui.geometria_radial import (
+    ITEM_MAIS_PAGINA, MAX_NIVEIS_ANINHADOS, RAIO_EXTERNO_1, RAIO_INTERNO,
+    angulo_item as _angulo_item,
+    corresponde_busca,
+    dividir_icone_rotulo as _dividir_icone_rotulo,
+    fatia_no_anel as _fatia_no_anel,
+    margem_ancora_que_cabe as _margem_ancora_que_cabe,
+    paginar,
+    raio_externo_nivel as _raio_externo_nivel,
+    raio_interno_nivel as _raio_interno_nivel,
+    tamanho_para_profundidade as _tamanho_para_profundidade,
+)
 from iris.ui.qt_widgets import confirmar_acao
 
 
-# ---------------------------------------------------------------------------
-# Geometria - ângulo 0° = 3h (leste), crescendo ANTI-horário (Qt); item 0 no
-# topo (90°), os seguintes em sentido HORÁRIO (ângulo decrescente).
-#
-# O raio de cada nível é calculado (não fixo em 2 constantes) pra suportar
-# categorias aninhadas dentro de categorias. Nível 0 = anel de favoritos
-# (sempre visível); nível 1, 2, 3... = cada categoria aberta a partir do nível
-# anterior. `MAX_NIVEIS_ANINHADOS` limita a profundidade (sanidade visual/
-# tamanho de tela, não uma limitação técnica de verdade).
-# ---------------------------------------------------------------------------
-RAIO_INTERNO = 68          # borda interna do anel de favoritos / raio do centro
-RAIO_EXTERNO_1 = 176       # borda externa do anel de favoritos (nível 0, sempre visível)
-GAP_ENTRE_ANEIS = 18       # folga visual entre um anel e o próximo
-LARGURA_ANEL_SUBITENS = 110  # espessura de cada anel ALÉM do primeiro (subitens/categorias aninhadas)
-MAX_NIVEIS_ANINHADOS = 4  # favoritos (nível 0) + até 3 categorias aninhadas
-MARGEM = 80
+# Geometria pura (raios, ângulos, hit-test, paginação) mora em
+# `iris/ui/geometria_radial.py`. Aqui ficam só as constantes de DESENHO.
 CRESCIMENTO_HOVER = 14
 GAP_GRAUS = 3
 
 
-def _raio_interno_nivel(indice_nivel):
-    if indice_nivel <= 0:
-        return RAIO_INTERNO
-    raio = RAIO_EXTERNO_1
-    for _ in range(indice_nivel - 1):
-        raio += GAP_ENTRE_ANEIS + LARGURA_ANEL_SUBITENS
-    return raio + GAP_ENTRE_ANEIS
-
-
-def _raio_externo_nivel(indice_nivel):
-    if indice_nivel <= 0:
-        return RAIO_EXTERNO_1
-    return _raio_interno_nivel(indice_nivel) + LARGURA_ANEL_SUBITENS
-
-
-def _tamanho_para_profundidade(profundidade):
-    """profundidade = quantos anéis além do de favoritos estão abertos AGORA
-    (`len(self.pilha)`) - o popup só ocupa na tela o espaço que precisa neste
-    momento, cresce/encolhe conforme o usuário entra/sai de categorias."""
-    return _raio_externo_nivel(profundidade) * 2 + MARGEM
-
-
-def _profundidade_maxima_configurada(favoritos_atuais):
+def _profundidade_maxima_configurada(favoritos_atuais, categorias_plugins):
     """Quantos anéis de categoria-dentro-de-categoria são ALCANÇÁVEIS de
     verdade a partir dos favoritos ATUAIS - não o teto técnico
     (`MAX_NIVEIS_ANINHADOS`, que só limita o quanto DÁ pra aninhar) nem
@@ -92,7 +70,7 @@ def _profundidade_maxima_configurada(favoritos_atuais):
     nunca um anel mais fundo."""
     categorias = radial_menu.obter_categorias()
     nomes_categoria = set(categorias.keys())
-    categorias_planas = set(CATEGORIAS.keys()) | set(_categorias_plugins_disponiveis().keys())
+    categorias_planas = set(CATEGORIAS.keys()) | set(categorias_plugins)
     todas_categorias = nomes_categoria | categorias_planas
 
     def _profundidade(nome, visitados):
@@ -113,22 +91,6 @@ def _profundidade_maxima_configurada(favoritos_atuais):
     profundidade_real = max(_profundidade(nome, frozenset()) for nome in categorias_favoritadas)
     return min(profundidade_real, MAX_NIVEIS_ANINHADOS - 1)
 
-
-def _margem_ancora_que_cabe(dimensao_tela, profundidade_desejada):
-    """Quanto de margem reservar num eixo pro popup nunca precisar "pular"
-    de lugar ao crescer até `profundidade_desejada` (ver
-    `_profundidade_maxima_configurada`) - se isso não couber em metade da
-    tela (comum no eixo Y de monitores widescreen, quando a config tem
-    bastante aninhamento de verdade), recua pra profundidades menores até
-    achar uma que caiba; no pior caso usa só o tamanho de favoritos
-    (profundidade 0), aceitando que aninhar bem fundo perto da borda pode
-    cortar um pouco, em troca do popup pelo menos abrir onde o cursor
-    está."""
-    for profundidade in range(profundidade_desejada, -1, -1):
-        margem = _tamanho_para_profundidade(profundidade) // 2
-        if margem <= dimensao_tela // 2:
-            return margem
-    return _tamanho_para_profundidade(0) // 2
 
 # A paleta de cor é uma RODA DE COR CONTÍNUA: a cor de uma fatia em destaque
 # vem do ÂNGULO ABSOLUTO dela na tela (matiz = função do ângulo), não de um
@@ -166,10 +128,6 @@ ICONES_FIXOS = {
     "tela": "🖥️",
 }
 ICONE_PADRAO = "🎮"
-# Fatia de paginação - sentinela puramente de UI (não é persistido em lugar
-# nenhum), gerada em runtime por `_paginar` sempre que uma camada não cabe
-# inteira no limite configurado. Clicar avança a página (cíclico).
-ITEM_MAIS_PAGINA = "▸ Mais"
 ICONES_PASTA = ("📂", "📁")
 
 # ---------------------------------------------------------------------------
@@ -204,7 +162,7 @@ def _carregar_pixmap_icone(caminho):
     if not caminho:
         return None
     if caminho not in _CACHE_PIXMAPS_ICONE:
-        pixmap = QPixmap(caminho)
+        pixmap = QPixmap(armazenamento.resolver_caminho(caminho))
         if pixmap.isNull():
             _CACHE_PIXMAPS_ICONE[caminho] = None
         else:
@@ -221,15 +179,11 @@ def _capacidade_nivel(indice_nivel):
     return radial_menu.obter_limite_por_camada_subitens()
 
 
-def _categorias_plugins_disponiveis():
-    return {p.rotulo_categoria: p for p in plugin_registry.providers_disponiveis()}
-
-
-def _e_categoria(rotulo):
+def _e_categoria(rotulo, categorias_plugins):
     return (
         rotulo in CATEGORIAS
         or rotulo in radial_menu.obter_categorias()
-        or rotulo in _categorias_plugins_disponiveis()
+        or rotulo in categorias_plugins
     )
 
 
@@ -258,67 +212,40 @@ def _rotulo_exibicao_app(rotulo):
     return rotulo.title()
 
 
-def _favoritos_efetivos():
-    """Favoritos do perfil atual, sem os que estão numa categoria DESATIVADA
-    ou desativados individualmente - continuam na posição salva em
-    `obter_favoritos()` (pra reaparecer no mesmo lugar ao reativar), só não
-    aparecem no popup enquanto desligados."""
+def _favoritos_efetivos(categorias_plugins):
+    """Favoritos do perfil atual que aparecem AGORA: ficam de fora os
+    desativados (categoria desligada ou item desligado) e as categorias de
+    plugin cujo serviço não está respondendo (`categorias_plugins` = só as
+    disponíveis). Todos continuam na posição salva em `obter_favoritos()`,
+    pra reaparecer no mesmo lugar."""
     favoritos = list(radial_menu.obter_favoritos())
     categorias = radial_menu.obter_categorias()
     desativados_fav = radial_menu.obter_favoritos_desativados()
+    plugins_registrados = {p.rotulo_categoria for p in plugin_registry.providers_registrados()}
     return [
         f for f in favoritos
         if not (f in categorias and not categorias[f].get("ativa", True))
         and f not in desativados_fav
+        and not (f in plugins_registrados and f not in categorias_plugins)
     ]
 
 
-def _dividir_icone_rotulo(rotulo):
-    partes = rotulo.split(" ", 1)
-    if partes[0] and ord(partes[0][0]) > 127:
-        return partes[0], (partes[1] if len(partes) > 1 else "")
-    return None, rotulo
-
-
-def _angulo_item(indice, capacidade, referencia=90.0):
-    """Ângulo central da fatia `indice` - `referencia` é onde a fatia 0 fica
-    (90° = topo, comportamento padrão do anel de favoritos). Um anel aberto a
-    partir de uma categoria usa uma `referencia` diferente de 90°
-    (ver `RadialMenuQt._referencia_nivel`), fazendo os itens dele ficarem
-    centrados em volta de onde o botão que os abriu está na tela."""
-    passo = 360.0 / capacidade
-    return (referencia - indice * passo) % 360
-
-
-def _indice_da_fatia(angulo, capacidade, referencia=90.0):
-    """Cada fatia é DESENHADA centrada em `_angulo_item` (de `centro -
-    passo/2` até `centro + passo/2`) - o hit-test usa `round()` (não
-    `floor()`) pra centralizar a área clicável no mesmo ponto que o desenho
-    já usa."""
-    passo = 360.0 / capacidade
-    deslocado = (referencia - angulo) % 360
-    return round(deslocado / passo) % capacidade
-
-
-def _fatia_no_anel(dx, dy, raio_min, raio_max, capacidade, quantidade_real, referencia=90.0):
-    """O TAMANHO de cada fatia (`capacidade`, o limite configurado daquele
-    anel) é fixo, independente de quantos itens existem de verdade agora
-    (`quantidade_real`) - uma categoria com só 3 itens ocupa 3 fatias do
-    TAMANHO PADRÃO (deixando o resto do círculo vazio), em vez de esticar
-    essas 3 fatias pra preencher o círculo inteiro. Um clique/hover que caia
-    numa posição "vazia" (índice >= quantidade_real) não acerta nada."""
-    distancia = math.hypot(dx, dy)
-    if distancia > raio_max or distancia < raio_min:
-        return None
-    angulo = math.degrees(math.atan2(-dy, dx)) % 360
-    indice = _indice_da_fatia(angulo, capacidade, referencia)
-    return indice if indice < quantidade_real else None
-
-
 class RadialMenuQt(QWidget):
+    # Resultado de trabalho feito em thread comum volta pra thread do Qt por
+    # sinal - nunca mexer no widget (nem `update()`) de fora dela.
+    _metricas_prontas = Signal(dict)
+    _plugins_prontos = Signal(list)
+
     def __init__(self):
         super().__init__()
-        self.favoritos_completos = _favoritos_efetivos()
+        # Disponibilidade dos plugins: abre com o resultado da última
+        # checagem (sem rede) e se corrige quando a checagem em segundo plano
+        # terminar - o popup nunca espera o timeout de um serviço parado.
+        self._plugins = {p.rotulo_categoria: p for p in plugin_registry.disponiveis_em_cache()}
+        self._plugins_prontos.connect(self._ao_receber_plugins)
+        self._metricas_prontas.connect(self._ao_receber_metricas)
+        self._cache_brilho = {}
+        self.favoritos_completos = _favoritos_efetivos(self._plugins)
         self.pagina_1 = 0
         self.total_paginas_1 = 1
         self.rotulos = []
@@ -349,6 +276,7 @@ class RadialMenuQt(QWidget):
 
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_DeleteOnClose)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.StrongFocus)
         self._reposicionar_para_profundidade()
@@ -366,6 +294,27 @@ class RadialMenuQt(QWidget):
         self._timer_relogio = QTimer(self)
         self._timer_relogio.timeout.connect(self.update)
         self._timer_relogio.start(1000)
+
+        threading.Thread(target=self._checar_plugins, daemon=True).start()
+
+    def _checar_plugins(self):
+        disponiveis = plugin_registry.atualizar_disponibilidade()
+        try:
+            self._plugins_prontos.emit(disponiveis)
+        except RuntimeError:
+            pass  # popup já foi fechado
+
+    def _ao_receber_plugins(self, disponiveis):
+        novos = {p.rotulo_categoria: p for p in disponiveis}
+        if set(novos) == set(self._plugins):
+            return
+        self._plugins = novos
+        self.favoritos_completos = _favoritos_efetivos(self._plugins)
+        if any(n["categoria"] not in novos and plugin_registry.provider_por_categoria(n["categoria"]) for n in self.pilha):
+            self.pilha = []
+            self._reposicionar_para_profundidade()
+        self._recalcular_exibidos()
+        self.update()
 
     # ------------------------------------------------------------------
     # Janela dinâmica - só ocupa o espaço que a profundidade atual precisa,
@@ -387,7 +336,7 @@ class RadialMenuQt(QWidget):
             # `_margem_ancora_que_cabe`). E baseada no que está REALMENTE
             # configurado agora, não no teto técnico (ver
             # `_profundidade_maxima_configurada`).
-            profundidade_desejada = _profundidade_maxima_configurada(self.favoritos_completos)
+            profundidade_desejada = _profundidade_maxima_configurada(self.favoritos_completos, self._plugins)
             margem_x = _margem_ancora_que_cabe(tela.width(), profundidade_desejada)
             margem_y = _margem_ancora_que_cabe(tela.height(), profundidade_desejada)
             cx = max(tela.left() + margem_x, min(cursor_pos.x(), tela.right() - margem_x))
@@ -406,29 +355,13 @@ class RadialMenuQt(QWidget):
     def _aplicar_filtro(self, lista):
         if not self.filtro_busca:
             return lista
-        q = self.filtro_busca.lower()
-
-        def _corresponde(r):
-            if q in _dividir_icone_rotulo(r)[1].lower() or q in r.lower():
-                return True
-            apelido = radial_menu.obter_apelido(r)
-            return bool(apelido and q in apelido.lower())
-        return [r for r in lista if _corresponde(r)]
+        return [
+            r for r in lista
+            if corresponde_busca(self.filtro_busca, _dividir_icone_rotulo(r)[1], r, radial_menu.obter_apelido(r))
+        ]
 
     def _paginar(self, lista, pagina, limite):
-        """Quando não cabe tudo numa página, a ÚLTIMA posição vira
-        `ITEM_MAIS_PAGINA` (avança a página, com wraparound), reservando 1
-        vaga real a menos por página (`tamanho_pagina = limite - 1`) pra o
-        total de fatias visíveis nunca passar do limite configurado."""
-        if len(lista) <= limite:
-            return lista, 0, 1
-        tamanho_pagina = max(1, limite - 1)
-        total_paginas = math.ceil(len(lista) / tamanho_pagina)
-        pagina = pagina % total_paginas
-        inicio = pagina * tamanho_pagina
-        pagina_atual = lista[inicio:inicio + tamanho_pagina]
-        pagina_atual.append(ITEM_MAIS_PAGINA)
-        return pagina_atual, pagina, total_paginas
+        return paginar(lista, pagina, limite)
 
     def _recalcular_nivel(self, indice_pilha):
         nivel = self.pilha[indice_pilha]
@@ -502,10 +435,17 @@ class RadialMenuQt(QWidget):
 
     def _buscar_metricas_async(self):
         def _trabalho():
-            m = hardware_monitor.obter_metricas_sistema()
-            self.metricas = m
-            self.update()
+            metricas = hardware_monitor.obter_metricas_sistema()
+            try:
+                self._metricas_prontas.emit(metricas)
+            except RuntimeError:
+                pass  # popup já foi fechado
+
         threading.Thread(target=_trabalho, daemon=True).start()
+
+    def _ao_receber_metricas(self, metricas):
+        self.metricas = metricas
+        self.update()
 
     def _subitens_de(self, categoria):
         if categoria == radial_menu.ITEM_PASTAS:
@@ -570,28 +510,42 @@ class RadialMenuQt(QWidget):
         cx = cy = self.tamanho_atual / 2
         dx, dy = pos.x() - cx, pos.y() - cy
 
-        indice_1 = _fatia_no_anel(dx, dy, RAIO_INTERNO, RAIO_EXTERNO_1, _capacidade_nivel(0), self.n)
-        if indice_1 != self.indice_hover:
-            anterior = self.indice_hover
-            self.indice_hover = indice_1
-            if anterior is not None:
-                self._iniciar_animacao(("n0", anterior), 0)
-            if indice_1 is not None:
-                self._iniciar_animacao(("n0", indice_1), CRESCIMENTO_HOVER)
-
+        self._definir_hover(0, _fatia_no_anel(dx, dy, RAIO_INTERNO, RAIO_EXTERNO_1, _capacidade_nivel(0), self.n))
         for indice_nivel in range(1, len(self.pilha) + 1):
-            nivel = self.pilha[indice_nivel - 1]
-            n_nivel = len(nivel["exibidos"])
-            referencia_nivel = self._referencia_nivel(indice_nivel, n_nivel)
-            indice = _fatia_no_anel(dx, dy, _raio_interno_nivel(indice_nivel), _raio_externo_nivel(indice_nivel), _capacidade_nivel(indice_nivel), n_nivel, referencia_nivel) if n_nivel else None
-            if indice != nivel["hover"]:
-                anterior = nivel["hover"]
-                nivel["hover"] = indice
-                chave = f"n{indice_nivel}"
-                if anterior is not None:
-                    self._iniciar_animacao((chave, anterior), 0)
-                if indice is not None:
-                    self._iniciar_animacao((chave, indice), CRESCIMENTO_HOVER)
+            self._definir_hover(indice_nivel, self._fatia_sob(indice_nivel, dx, dy))
+
+    def _fatia_sob(self, indice_nivel, dx, dy):
+        """Índice da fatia do anel `indice_nivel` (>= 1) sob o ponto, ou None."""
+        nivel = self.pilha[indice_nivel - 1]
+        n_nivel = len(nivel["exibidos"])
+        if not n_nivel:
+            return None
+        return _fatia_no_anel(
+            dx, dy, _raio_interno_nivel(indice_nivel), _raio_externo_nivel(indice_nivel),
+            _capacidade_nivel(indice_nivel), n_nivel, self._referencia_nivel(indice_nivel, n_nivel),
+        )
+
+    def _itens_do_anel(self, indice_nivel):
+        return self.rotulos if indice_nivel == 0 else self.pilha[indice_nivel - 1]["exibidos"]
+
+    def _hover_do_anel(self, indice_nivel):
+        return self.indice_hover if indice_nivel == 0 else self.pilha[indice_nivel - 1]["hover"]
+
+    def _definir_hover(self, indice_nivel, indice):
+        """Único lugar que muda a fatia em destaque de um anel (0 =
+        favoritos) - usado pelo mouse e pelas setas do teclado."""
+        anterior = self._hover_do_anel(indice_nivel)
+        if anterior == indice:
+            return
+        if indice_nivel == 0:
+            self.indice_hover = indice
+        else:
+            self.pilha[indice_nivel - 1]["hover"] = indice
+        chave = f"n{indice_nivel}"
+        if anterior is not None:
+            self._iniciar_animacao((chave, anterior), 0)
+        if indice is not None:
+            self._iniciar_animacao((chave, indice), CRESCIMENTO_HOVER)
 
     def _atualizar_hover_cursor_atual(self):
         self._atualizar_hover(self.mapFromGlobal(QCursor.pos()))
@@ -645,7 +599,7 @@ class RadialMenuQt(QWidget):
                 # que já vem filtrada e por isso nunca detectaria um item
                 # desativado faltando.
                 if self.filtro_busca or self.total_paginas_1 > 1 or len(self.rotulos) != len(radial_menu.obter_favoritos()):
-                    print(" [SISTEMA] Menu Radial: arrastar pra reordenar só funciona sem busca ativa, com todos os favoritos numa página só e nenhum desativado (reordene em Configurações nesses casos).")
+                    avisar_usuario("Arrastar pra reordenar só funciona sem busca, com todos os favoritos numa página e nenhum desativado. Nesses casos, reordene em Configurações.")
                     return
                 self._arrastando_indice = indice_1
                 self._atualizar_icone_cursor(True)
@@ -654,59 +608,38 @@ class RadialMenuQt(QWidget):
         # Do anel mais EXTERNO (aberto por último) pro mais interno - clique
         # no anel visível na frente tem prioridade.
         for indice_nivel in range(len(self.pilha), 0, -1):
-            nivel = self.pilha[indice_nivel - 1]
-            itens = nivel["exibidos"]
-            n_nivel = len(itens)
-            referencia_nivel = self._referencia_nivel(indice_nivel, n_nivel)
-            indice = _fatia_no_anel(dx, dy, _raio_interno_nivel(indice_nivel), _raio_externo_nivel(indice_nivel), _capacidade_nivel(indice_nivel), n_nivel, referencia_nivel) if n_nivel else None
-            if indice is None:
-                continue
-            item = itens[indice]
-            if item == ITEM_MAIS_PAGINA:
-                if event.button() == Qt.LeftButton:
-                    nivel["pagina"] += 1
-                    self._recalcular_nivel(indice_nivel - 1)
-                    self._atualizar_hover_cursor_atual()
+            indice = self._fatia_sob(indice_nivel, dx, dy)
+            if indice is not None:
+                self._ativar(indice_nivel, indice, event.button())
                 return
-            if item.startswith(_PREFIXOS_INFO):
-                return
-            if event.button() == Qt.MiddleButton:
-                if _categoria_favoritavel(nivel["categoria"]):
-                    self._alternar_favorito(item)
-                return
-            if event.button() != Qt.LeftButton:
-                return
-            if _e_categoria(item) and len(self.pilha) < MAX_NIVEIS_ANINHADOS - 1 and item not in self._cadeia_categorias_atual():
-                # Categoria (inclusive aninhada) - descarta qualquer coisa
-                # ALÉM deste nível e empilha mais um, sem fechar os
-                # anteriores ("manter os grupos sempre visíveis e ir
-                # trocando os subgrupos").
-                self.pilha = self.pilha[:indice_nivel]
-                angulo_ancora = _angulo_item(indice, _capacidade_nivel(indice_nivel), referencia_nivel)
-                self._empilhar_categoria(item, angulo_ancora=angulo_ancora)
-                self.update()
-                return
-            self.close()
-            self._executar_item(nivel["categoria"], item)
-            return
 
         indice_1 = _fatia_no_anel(dx, dy, RAIO_INTERNO, RAIO_EXTERNO_1, _capacidade_nivel(0), self.n)
         if indice_1 is not None:
-            rotulo = self.rotulos[indice_1]
+            self._ativar(0, indice_1, event.button())
+            return
+
+        if event.button() == Qt.LeftButton:
+            self.close()
+
+    def _ativar(self, indice_nivel, indice, botao):
+        """Age sobre a fatia `indice` do anel `indice_nivel` (0 = favoritos)
+        como um clique de `botao` - caminho único pro mouse e pro Enter."""
+        if indice_nivel == 0:
+            rotulo = self.rotulos[indice]
             if rotulo == ITEM_MAIS_PAGINA:
-                if event.button() == Qt.LeftButton:
+                if botao == Qt.LeftButton:
                     self.pagina_1 += 1
                     self._recalcular_exibidos()
                     self.update()
                 return
-            if event.button() == Qt.MiddleButton:
+            if botao == Qt.MiddleButton:
                 self._alternar_favorito(rotulo)
                 return
-            if event.button() != Qt.LeftButton:
+            if botao != Qt.LeftButton:
                 return
-            if _e_categoria(rotulo):
+            if _e_categoria(rotulo, self._plugins):
                 self.pilha = []
-                angulo_ancora = _angulo_item(indice_1, _capacidade_nivel(0))
+                angulo_ancora = _angulo_item(indice, _capacidade_nivel(0))
                 self._empilhar_categoria(rotulo, angulo_ancora=angulo_ancora)
                 self.update()
                 return
@@ -714,14 +647,77 @@ class RadialMenuQt(QWidget):
             self._lancar(rotulo)
             return
 
-        if event.button() == Qt.LeftButton:
-            self.close()
+        nivel = self.pilha[indice_nivel - 1]
+        item = nivel["exibidos"][indice]
+        if item == ITEM_MAIS_PAGINA:
+            if botao == Qt.LeftButton:
+                nivel["pagina"] += 1
+                self._recalcular_nivel(indice_nivel - 1)
+                self._atualizar_hover_cursor_atual()
+            return
+        if item.startswith(_PREFIXOS_INFO):
+            return
+        if botao == Qt.MiddleButton:
+            if _categoria_favoritavel(nivel["categoria"]):
+                self._alternar_favorito(item)
+            return
+        if botao != Qt.LeftButton:
+            return
+        if _e_categoria(item, self._plugins) and len(self.pilha) < MAX_NIVEIS_ANINHADOS - 1 and item not in self._cadeia_categorias_atual():
+            # Categoria (inclusive aninhada) - descarta qualquer coisa ALÉM
+            # deste nível e empilha mais um, sem fechar os anteriores
+            # ("manter os grupos sempre visíveis e ir trocando os subgrupos").
+            referencia_nivel = self._referencia_nivel(indice_nivel, len(nivel["exibidos"]))
+            self.pilha = self.pilha[:indice_nivel]
+            angulo_ancora = _angulo_item(indice, _capacidade_nivel(indice_nivel), referencia_nivel)
+            self._empilhar_categoria(item, angulo_ancora=angulo_ancora)
+            self.update()
+            return
+        self.close()
+        self._executar_item(nivel["categoria"], item)
+
+    # ------------------------------------------------------------------
+    # Teclado: setas escolhem a fatia do anel mais externo, Enter ativa.
+    # Com busca digitada e nada escolhido, Enter abre o primeiro resultado.
+    # ------------------------------------------------------------------
+    def _acionaveis(self, indice_nivel):
+        return [
+            i for i, item in enumerate(self._itens_do_anel(indice_nivel))
+            if item != ITEM_MAIS_PAGINA and not item.startswith(_PREFIXOS_INFO)
+        ]
+
+    def _mover_selecao(self, passo):
+        indice_nivel = len(self.pilha)
+        total = len(self._itens_do_anel(indice_nivel))
+        if not total:
+            return
+        atual = self._hover_do_anel(indice_nivel)
+        if atual is None:
+            novo = 0 if passo > 0 else total - 1
+        else:
+            novo = (atual + passo) % total
+        self._definir_hover(indice_nivel, novo)
+        self.update()
+
+    def _ativar_selecao(self):
+        for indice_nivel in range(len(self.pilha), -1, -1):
+            indice = self._hover_do_anel(indice_nivel)
+            if indice is not None and indice < len(self._itens_do_anel(indice_nivel)):
+                self._ativar(indice_nivel, indice, Qt.LeftButton)
+                return
+        if not self.filtro_busca:
+            return
+        for indice_nivel in range(len(self.pilha), -1, -1):
+            acionaveis = self._acionaveis(indice_nivel)
+            if acionaveis:
+                self._ativar(indice_nivel, acionaveis[0], Qt.LeftButton)
+                return
 
     def mouseReleaseEvent(self, event):
         if self._arrastando_indice is not None:
             self._arrastando_indice = None
             radial_menu.salvar_favoritos(list(self.rotulos))
-            self.favoritos_completos = _favoritos_efetivos()
+            self.favoritos_completos = _favoritos_efetivos(self._plugins)
             self._atualizar_icone_cursor(bool(event.modifiers() & Qt.AltModifier))
             self.update()
 
@@ -737,6 +733,15 @@ class RadialMenuQt(QWidget):
             else:
                 self.close()
             return
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            self._ativar_selecao()
+            return
+        if event.key() in (Qt.Key_Right, Qt.Key_Down):
+            self._mover_selecao(1)
+            return
+        if event.key() in (Qt.Key_Left, Qt.Key_Up):
+            self._mover_selecao(-1)
+            return
         if event.key() == Qt.Key_Backspace:
             if self.filtro_busca:
                 self.filtro_busca = self.filtro_busca[:-1]
@@ -745,6 +750,11 @@ class RadialMenuQt(QWidget):
                     nivel["pagina"] = 0
                 self._recalcular_exibidos()
                 self.update()
+            elif self.pilha:
+                # sem busca digitada, Backspace volta um anel
+                self.pilha.pop()
+                self._reposicionar_para_profundidade()
+                self._atualizar_hover_cursor_atual()
             return
         texto = event.text()
         if texto == " " and not self.filtro_busca:
@@ -792,6 +802,8 @@ class RadialMenuQt(QWidget):
         global _popup_atual
         if _popup_atual is self:
             _popup_atual = None
+        self._timer_metricas.stop()
+        self._timer_relogio.stop()
         if radial_menu.obter_ranking_automatico_ativo():
             radial_menu.ordenar_favoritos_por_uso()
         super().closeEvent(event)
@@ -803,12 +815,12 @@ class RadialMenuQt(QWidget):
         favoritos = radial_menu.obter_favoritos()
         if rotulo in favoritos:
             favoritos = [f for f in favoritos if f != rotulo]
-            print(f" [SISTEMA] Menu Radial: '{rotulo}' removido dos favoritos.")
+            registro.info("'%s' removido dos favoritos.", rotulo)
         else:
             favoritos = favoritos + [rotulo]
-            print(f" [SISTEMA] Menu Radial: '{rotulo}' adicionado aos favoritos.")
+            registro.info("'%s' adicionado aos favoritos.", rotulo)
         radial_menu.salvar_favoritos(favoritos)
-        self.favoritos_completos = _favoritos_efetivos()
+        self.favoritos_completos = _favoritos_efetivos(self._plugins)
         self._recalcular_exibidos()
         self.update()
 
@@ -822,13 +834,13 @@ class RadialMenuQt(QWidget):
                 radial_menu.registrar_recente(rotulo)
                 radial_menu.registrar_uso(rotulo)
             else:
-                print(f" [SISTEMA] Menu Radial: pasta '{texto}' não encontrada/configurada (Configurações > Pastas).")
+                avisar_usuario(f"Pasta '{texto}' não encontrada. Confira em Configurações > Pastas.")
             return
 
         launcher = app_launcher_mod.AppLauncher()
-        app_name, target = launcher.find_app(rotulo)
+        app_name, target = launcher.find_app(rotulo, exato=True)
         if not app_name:
-            print(f" [SISTEMA] Menu Radial: '{rotulo}' não foi encontrado (pode ter sido desinstalado - reescaneie os apps ou remova esse favorito).")
+            avisar_usuario(f"'{rotulo}' não foi encontrado (pode ter sido desinstalado). Reescaneie os apps em Configurações > Steam ou remova o item.")
             return
         if app_name.lower() == "youtube":
             import webbrowser
@@ -836,8 +848,9 @@ class RadialMenuQt(QWidget):
         elif app_name.lower() == "navegador":
             import webbrowser
             webbrowser.open("https://www.google.com")
-        else:
-            launcher.open_app_cmd(app_name, target)
+        elif not launcher.open_app_cmd(app_name, target):
+            avisar_usuario(f"Não consegui abrir '{rotulo}'.")
+            return
         radial_menu.registrar_recente(rotulo)
         radial_menu.registrar_uso(rotulo)
 
@@ -855,7 +868,8 @@ class RadialMenuQt(QWidget):
                     ),
                 )
             except Exception as e:
-                print(f" [SISTEMA] Menu Radial: erro executando '{item}' via plugin '{provider.id}': {e}")
+                registro.exception("Erro executando '%s' via plugin '%s'", item, provider.id)
+                avisar_usuario(f"'{item}' falhou: {e}")
             return
         # Pastas/Recentes/Steam/categorias genéricas (inclusive aninhadas) -
         # o item em si é um app/pasta lançável, mesma lógica de favoritos.
@@ -899,31 +913,23 @@ class RadialMenuQt(QWidget):
 
         algum_destaque = any(d for _, _, _, d in paths_e_cores)
         if algum_destaque:
-            glow_img = QImage(self.tamanho_atual, self.tamanho_atual, QImage.Format_ARGB32_Premultiplied)
-            glow_img.fill(Qt.transparent)
-            glow_painter = QPainter(glow_img)
-            glow_painter.setRenderHint(QPainter.Antialiasing)
-            for path, cor, i, destaque in paths_e_cores:
-                if not destaque:
-                    continue
-                pen = QPen(cor, 7 if i == hover_atual else 4)
-                glow_painter.setPen(pen)
-                glow_painter.setBrush(Qt.NoBrush)
-                glow_painter.drawPath(path)
-            glow_painter.end()
-
-            blur = QGraphicsBlurEffect()
-            blur.setBlurRadius(26)
-            scene = QGraphicsScene()
-            item = QGraphicsPixmapItem(QPixmap.fromImage(glow_img))
-            item.setGraphicsEffect(blur)
-            scene.addItem(item)
-            glow_borrado = QImage(self.tamanho_atual, self.tamanho_atual, QImage.Format_ARGB32_Premultiplied)
-            glow_borrado.fill(Qt.transparent)
-            p2 = QPainter(glow_borrado)
-            p2.setRenderHint(QPainter.Antialiasing)
-            scene.render(p2)
-            p2.end()
+            # O brilho (traço + desfoque) é a parte cara do desenho. Ele só
+            # muda quando muda o que está em destaque ou o quanto a fatia
+            # cresceu - repinturas com o mesmo estado (relógio a cada 1 s,
+            # métricas) reaproveitam a imagem pronta.
+            chave_brilho = (
+                chave_crescimento, self.tamanho_atual, capacidade, raio_int, raio_ext, round(referencia, 2),
+                tuple(
+                    (i, i == hover_atual, round(self.crescimento_atual.get((chave_crescimento, i), 0) * 2))
+                    for _, _, i, destaque in paths_e_cores if destaque
+                ),
+            )
+            glow_borrado = self._cache_brilho.get(chave_brilho)
+            if glow_borrado is None:
+                glow_borrado = self._renderizar_brilho(paths_e_cores, hover_atual)
+                if len(self._cache_brilho) > 24:
+                    self._cache_brilho.clear()
+                self._cache_brilho[chave_brilho] = glow_borrado
             painter.drawImage(0, 0, glow_borrado)
 
         for path, cor, i, destaque in paths_e_cores:
@@ -971,6 +977,33 @@ class RadialMenuQt(QWidget):
                 ex = cx + raio_estrela * math.cos(ang)
                 ey = cy - raio_estrela * math.sin(ang)
                 painter.drawText(QRectF(ex - 10, ey - 10, 20, 20), Qt.AlignCenter, "★")
+
+    def _renderizar_brilho(self, paths_e_cores, hover_atual):
+        glow_img = QImage(self.tamanho_atual, self.tamanho_atual, QImage.Format_ARGB32_Premultiplied)
+        glow_img.fill(Qt.transparent)
+        glow_painter = QPainter(glow_img)
+        glow_painter.setRenderHint(QPainter.Antialiasing)
+        for path, cor, i, destaque in paths_e_cores:
+            if not destaque:
+                continue
+            glow_painter.setPen(QPen(cor, 7 if i == hover_atual else 4))
+            glow_painter.setBrush(Qt.NoBrush)
+            glow_painter.drawPath(path)
+        glow_painter.end()
+
+        blur = QGraphicsBlurEffect()
+        blur.setBlurRadius(26)
+        scene = QGraphicsScene()
+        item = QGraphicsPixmapItem(QPixmap.fromImage(glow_img))
+        item.setGraphicsEffect(blur)
+        scene.addItem(item)
+        glow_borrado = QImage(self.tamanho_atual, self.tamanho_atual, QImage.Format_ARGB32_Premultiplied)
+        glow_borrado.fill(Qt.transparent)
+        p2 = QPainter(glow_borrado)
+        p2.setRenderHint(QPainter.Antialiasing)
+        scene.render(p2)
+        p2.end()
+        return glow_borrado
 
     def _resolver_item(self, rotulo, categoria_pai):
         """Resolve (ícone, texto) de QUALQUER item, em QUALQUER anel.
@@ -1024,6 +1057,11 @@ class RadialMenuQt(QWidget):
         return icone, texto
 
     def paintEvent(self, event):
+        # Uma conferência de disco por repintura, não uma por fatia.
+        with radial_menu.leitura_em_lote():
+            self._pintar()
+
+    def _pintar(self):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         cx = cy = self.tamanho_atual / 2
@@ -1118,22 +1156,22 @@ _popup_atual = None
 
 
 def mostrar_menu_radial_qt():
-    """Ponto de entrada público - chamado pelo hotkey global (Ctrl+Alt+Espaço,
-    ver `iris/main.py`). 2º toque fecha o popup (toggle). Precisa rodar na GUI
-    thread (Qt) - `main.py` marshalla a chamada do hook de teclado pra lá
-    antes de chamar isto."""
+    """Ponto de entrada público - chamado pelo atalho global (ver
+    `iris/main.py`), sempre na thread do Qt. 2º toque fecha o popup (toggle).
+    Devolve "aberto", "fechado" ou "sem_favoritos" (nada pra mostrar: quem
+    chama abre as Configurações em vez de deixar o atalho sem efeito)."""
     global _popup_atual
     if _popup_atual is not None:
         try:
             _popup_atual.close()
-        except Exception:
+        except RuntimeError:
             pass
         _popup_atual = None
-        return
+        return "fechado"
 
-    if not radial_menu.obter_favoritos():
-        print(" [SISTEMA] Menu Radial: nenhum favorito configurado ainda - abra Configurações pra escolher.")
-        return
+    plugins = {p.rotulo_categoria: p for p in plugin_registry.disponiveis_em_cache()}
+    if not _favoritos_efetivos(plugins):
+        return "sem_favoritos"
 
     janela = RadialMenuQt()
     _popup_atual = janela
@@ -1141,3 +1179,4 @@ def mostrar_menu_radial_qt():
     janela.raise_()
     janela.activateWindow()
     janela.setFocus()
+    return "aberto"

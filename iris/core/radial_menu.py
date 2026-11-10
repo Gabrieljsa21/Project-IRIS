@@ -28,7 +28,11 @@ Esquema (data/menu_radial_config.json):
       "limite_por_camada_subitens": 8,
       "ranking_automatico_ativo": false,
       "apelidos": {},
-      "icones_customizados": {}
+      "icones_customizados": {},
+      "atalho": "ctrl+alt+space",
+      "pasta_projetos": "",          (vazio = pasta que contém este repositório)
+      "pasta_icones_projetos": "",
+      "projetos_conhecidos": [...nomes já oferecidos à categoria Projects...]
     }
 
 Ver `data/menu_radial_config.example.json` pra um exemplo preenchido (sem
@@ -36,16 +40,22 @@ nenhum dado pessoal real - Steam/pastas/uso são só ilustrativos)."""
 
 import os
 import re
-import json
 import copy
+import glob
 import shutil
 
-ARQUIVO_DADOS = "data/menu_radial_config.json"
+from iris.core import armazenamento
+from iris.core.atalho import ATALHO_PADRAO
+from iris.core.avisos import avisar_usuario, registro
+
+ARQUIVO_DADOS = armazenamento.caminho_dados("menu_radial_config.json")
 
 # Pasta de destino das artes customizadas de ícone - a imagem escolhida na
 # tela de Configurações é SEMPRE copiada pra cá, nunca referenciada direto de
 # onde o usuário guardou o arquivo original, pra não quebrar se aquela pasta
 # for movida/apagada depois.
+# No JSON fica o caminho RELATIVO à raiz do projeto (portável entre máquinas);
+# `armazenamento.resolver_caminho` devolve o absoluto na hora de abrir.
 PASTA_ICONES_CUSTOMIZADOS = "assets/icones_customizados"
 EXTENSOES_ICONE_VALIDAS = (".png", ".jpg", ".jpeg", ".ico", ".bmp", ".webp")
 
@@ -71,50 +81,13 @@ ITENS_ESPECIAIS = [ITEM_PASTAS, ITEM_RECENTES, ITEM_STEAM]
 # na primeira vez que a tecla de atalho é usada.
 FAVORITOS_PADRAO = ["bloco de notas", "calculadora", "youtube", "navegador"]
 
-# 🔥 Categoria "Projects" (2026-08-30, pedido do usuário: "cria uma categoria
-# Projects, com todos os projetos q temos para abri-los facilmente"; corrigida
-# em 2026-09-01, usuário: "A categoria Projects era p armazenar o inicializador
-# de cada projeto, e deveria ter o ícone dele" - a v1 abria a PASTA de cada
-# projeto; cada item agora ABRE O INICIALIZADOR de verdade (o `.vbs` que sobe
-# o processo escondido via pythonw, mesmo de um atalho de área de trabalho) e
-# ganha o ícone oficial do projeto (`E:\Downloads\Icones\<Nome>.png` - mesma
-# fonte usada pro ícone de bandeja do ERIS/LOKI).
-#
-# 2 exceções continuam abrindo a PASTA (não tem "inicializador" pra elas):
-# - IRIS: a própria instância que está mostrando ESSE popup JÁ é o IRIS
-#   rodando - "lançar" de novo só bateria na trava de instância única (porta
-#   8767) e não faria nada visível, então o item continua abrindo o código-
-#   fonte, útil pra editar.
-# - PANDORA: biblioteca Python pura (importada pelo ERIS), nunca teve
-#   processo/entrypoint próprio - não existe "inicializador" possível.
-#
-# `caminho_launcher=None` marca essas 2 exceções (usa `_PASTA_GAIA_EXISTENTE`/
-# `caminho` como pasta em vez de registrar um app). `icone=None` marca projeto
-# sem arte oficial ainda - GAIA tem ícone PRÓPRIO em outro lugar, ver abaixo.
-# ECHO/PANDORA/SIREN ganharam arte em `E:\Downloads\Icones` só em 2026-09-06/07
-# (pedido do usuário: "coloquei os ícones dos projetos que faltavam... já
-# insere no Iris") - como a categoria "Projects" já tinha sido criada antes
-# (seed roda só 1x, `categoria_projetos_criada_v2`), editar só isso aqui NÃO
-# reaplica o ícone sozinho pros itens já existentes - foi preciso um script
-# avulso chamando `definir_icone_customizado_arquivo` direto pros 3 nomes
-# (mesmo texto de item já salvo: "ECHO", "📁 PANDORA", "SIREN").
+# Categoria "Projects" - 1 item por projeto do ecossistema, descoberto por
+# convenção a cada boot (ver `sincronizar_categoria_projetos`). Nenhum caminho
+# de máquina fica no código: a pasta dos projetos vem da configuração
+# (`pasta_projetos`; padrão = a pasta que contém este repositório) e a pasta
+# de ícones também (`pasta_icones_projetos`, vazia por padrão).
 NOME_CATEGORIA_PROJETOS = "Projects"
-NOME_PASTA_GAIA = "Project G.A.I.A"
-# PNG em alta resolução, não o .ico (2026-09-26): o .ico tem 16/32/48/256 px e
-# o Qt lia o de 16 px, ampliado pra 64 px no menu - a GAIA ficava desfocada.
-ICONE_GAIA = r"C:\Workspace\Project G.A.I.A\assistant\assets\app_theme.png"
-
-# (nome, pasta_do_projeto, caminho_launcher_ou_None, caminho_icone_ou_None)
-PROJETOS_PADRAO = [
-    ("ARGUS", r"C:\Workspace\Project-ARGUS", r"C:\Workspace\Project-ARGUS\iniciar_argus_oculto.vbs", r"E:\Downloads\Icones\Argus.png"),
-    ("ECHO", r"C:\Workspace\Project-ECHO", r"C:\Workspace\Project-ECHO\iniciar_echo_oculto.vbs", r"E:\Downloads\Icones\Echo.png"),
-    ("ERIS", r"C:\Workspace\Project-ERIS", r"C:\Workspace\Project-ERIS\iniciar_eris_oculto.vbs", r"E:\Downloads\Icones\Eris.png"),
-    ("HESTIA", r"C:\Workspace\Project-HESTIA", r"C:\Workspace\Project-HESTIA\iniciar_hestia_oculto.vbs", r"E:\Downloads\Icones\Hestia.png"),
-    ("IRIS", r"C:\Workspace\Project-IRIS", None, r"E:\Downloads\Icones\Iris.png"),
-    ("MOIRAI", r"C:\Workspace\Project-MOIRAI", r"C:\Workspace\Project-MOIRAI\iniciar_moirai_oculto.vbs", r"E:\Downloads\Icones\Moirai.png"),
-    ("PANDORA", r"C:\Workspace\Project-PANDORA", None, r"E:\Downloads\Icones\Pandora.png"),
-    ("SIREN", r"C:\Workspace\Project-SIREN", r"C:\Workspace\Project-SIREN\iniciar_siren_oculto.vbs", r"E:\Downloads\Icones\Siren.png"),
-]
+PREFIXO_PASTA_PROJETO = "project"
 
 PERFIL_PADRAO = "Geral"
 LIMITE_POR_CAMADA_PADRAO = 8
@@ -127,15 +100,46 @@ MAX_RECENTES = 6
 # a fatia sumiria do popup em silêncio, e o histórico de uso seria perdido.
 RENOMEACOES_ROTULO = {"🎬 Anime Tracker": "🎬 Watchlist"}
 
-# 🔥 SEM cache em memória entre chamadas (2026-09-06, achado real: editar
-# `data/menu_radial_config.json` por fora - ex.: registrar o SIREN na
-# categoria "Projects" - enquanto o IRIS já estava rodando fazia a edição
-# sumir na primeira gravação seguinte, porque `_salvar` escrevia de volta o
-# dict inteiro em memória, carregado 1x no boot e nunca mais recarregado -
-# mesma classe de bug já corrigida antes no Argus/HESTIA/MOIRAI/ECHO nesse
-# ecossistema, "ler 1x, nunca recarregar"). `_carregar` agora sempre lê do
-# disco de novo; custo de reabrir um JSON pequeno a cada chamada é
-# irrelevante comparado ao risco de perder edição feita por fora.
+# Cache validado pelo disco (0.4.0). Histórico: até 2026-09-06 o dict era
+# carregado 1x no boot e nunca mais relido - uma edição feita por fora sumia
+# na gravação seguinte (mesma classe de bug do Argus/HESTIA/MOIRAI/ECHO, "ler
+# 1x, nunca recarregar"). A correção da época foi reler o arquivo em TODA
+# chamada, o que custava centenas de leituras por segundo com o popup aberto
+# (cada fatia consulta categorias, apelido e ícone a cada repintura). Agora o
+# dict fica em memória, mas cada chamada confere data de modificação + tamanho
+# do arquivo: mudou por fora, relê. Mantém a garantia e troca o parse por um
+# `os.stat`.
+_cache_dados = None
+_cache_assinatura = None
+_lotes_abertos = 0
+
+
+class leitura_em_lote:
+    """`with radial_menu.leitura_em_lote():` confere o disco UMA vez na
+    entrada e atende todas as leituras de dentro do bloco direto da memória.
+    Pra trechos só de leitura que consultam a configuração dezenas de vezes
+    seguidas (uma repintura do popup): no Windows cada `os.stat` custa uma
+    fração de milissegundo, e uma repintura fazia mais de dez. Não usar em
+    volta de gravações."""
+
+    def __enter__(self):
+        global _lotes_abertos
+        _carregar()
+        _lotes_abertos += 1
+        return self
+
+    def __exit__(self, *_exc):
+        global _lotes_abertos
+        _lotes_abertos -= 1
+        return False
+
+
+def _assinatura_arquivo():
+    try:
+        st = os.stat(ARQUIVO_DADOS)
+        return (ARQUIVO_DADOS, st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
 
 
 def _estrutura_padrao():
@@ -157,60 +161,109 @@ def _estrutura_padrao():
     }
 
 
-def _carregar():
-    if os.path.exists(ARQUIVO_DADOS):
+def _migrar(dados):
+    """Aplica as migrações de formato no dict lido. True se algo mudou."""
+    mudou = False
+    if "limite_por_camada" in dados:
+        # o valor único antigo (1 limite pros 2 anéis) vira o ponto de
+        # partida dos dois, ajustável separado depois.
+        valor_antigo = dados.pop("limite_por_camada")
+        dados.setdefault("limite_por_camada_favoritos", valor_antigo)
+        dados.setdefault("limite_por_camada_subitens", valor_antigo)
+        mudou = True
+    pastas_brutas = dados.get("pastas", {})
+    if any(not isinstance(v, dict) for v in pastas_brutas.values()):
+        # formato antigo era {"Nome": "caminho"}; vira {"Nome": {"caminho":
+        # ..., "ativa": true}}.
+        dados["pastas"] = {
+            nome: (v if isinstance(v, dict) else {"caminho": v, "ativa": True})
+            for nome, v in pastas_brutas.items()
+        }
+        mudou = True
+    for perfil in dados.get("perfis", {}).values():
+        favoritos = perfil.get("favoritos")
+        if favoritos:
+            novos = [RENOMEACOES_ROTULO.get(f, f) for f in favoritos]
+            if novos != favoritos:
+                perfil["favoritos"] = novos
+                mudou = True
+        uso = perfil.get("uso")
+        if uso and any(chave in RENOMEACOES_ROTULO for chave in uso):
+            perfil["uso"] = {RENOMEACOES_ROTULO.get(chave, chave): valor for chave, valor in uso.items()}
+            mudou = True
+    padrao = _estrutura_padrao()
+    for chave, valor in padrao.items():
+        dados.setdefault(chave, valor)
+    if not dados["perfis"]:
+        dados["perfis"][PERFIL_PADRAO] = padrao["perfis"][PERFIL_PADRAO]
+    if dados["perfil_atual"] not in dados["perfis"]:
+        dados["perfil_atual"] = next(iter(dados["perfis"]))
+    return mudou
+
+
+def _ler_do_disco():
+    """Lê e migra. Arquivo ilegível NUNCA é sobrescrito pelo padrão: tenta o
+    `.bak`; o arquivo ruim é renomeado pra `.corrompido-<data>` e o usuário é
+    avisado. Só um arquivo AUSENTE gera a estrutura padrão em silêncio."""
+    try:
+        dados = armazenamento.ler_json(ARQUIVO_DADOS)
+    except armazenamento.ArquivoIlegivel as erro:
+        registro.error("Configuração ilegível: %s", erro)
+        guardado = armazenamento.separar_arquivo_ilegivel(ARQUIVO_DADOS)
+        nome_guardado = os.path.basename(guardado or ARQUIVO_DADOS)
         try:
-            with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
-                dados = json.load(f)
-            precisa_persistir_migracao = False
-            if "limite_por_camada" in dados:
-                # migração: o valor único antigo (1 limite pros 2 anéis) vira
-                # o ponto de partida dos dois, ajustável separado depois.
-                valor_antigo = dados.pop("limite_por_camada")
-                dados.setdefault("limite_por_camada_favoritos", valor_antigo)
-                dados.setdefault("limite_por_camada_subitens", valor_antigo)
-                precisa_persistir_migracao = True
-            pastas_brutas = dados.get("pastas", {})
-            if any(not isinstance(v, dict) for v in pastas_brutas.values()):
-                # migração: formato antigo era {"Nome": "caminho"} (string
-                # pura), vira {"Nome": {"caminho": ..., "ativa": true}}.
-                dados["pastas"] = {
-                    nome: (v if isinstance(v, dict) else {"caminho": v, "ativa": True})
-                    for nome, v in pastas_brutas.items()
-                }
-                precisa_persistir_migracao = True
-            for perfil in dados.get("perfis", {}).values():
-                favoritos = perfil.get("favoritos")
-                if favoritos:
-                    novos = [RENOMEACOES_ROTULO.get(f, f) for f in favoritos]
-                    if novos != favoritos:
-                        perfil["favoritos"] = novos
-                        precisa_persistir_migracao = True
-                uso = perfil.get("uso")
-                if uso and any(chave in RENOMEACOES_ROTULO for chave in uso):
-                    perfil["uso"] = {RENOMEACOES_ROTULO.get(chave, chave): valor for chave, valor in uso.items()}
-                    precisa_persistir_migracao = True
-            padrao = _estrutura_padrao()
-            for chave, valor in padrao.items():
-                dados.setdefault(chave, valor)
-            if not dados["perfis"]:
-                dados["perfis"][PERFIL_PADRAO] = padrao["perfis"][PERFIL_PADRAO]
-            if dados["perfil_atual"] not in dados["perfis"]:
-                dados["perfil_atual"] = next(iter(dados["perfis"]))
-            if precisa_persistir_migracao:
-                _salvar(dados)  # grava a migração na hora - não só na próxima escrita
-            return dados
-        except Exception:
-            pass
-    dados = _estrutura_padrao()
-    _salvar(dados)
+            dados = armazenamento.ler_json(ARQUIVO_DADOS + ".bak")
+        except armazenamento.ArquivoIlegivel:
+            dados = None
+        if isinstance(dados, dict):
+            avisar_usuario(
+                "A configuração do menu estava corrompida; restaurei a cópia de segurança. "
+                f"O arquivo com problema ficou em {nome_guardado}."
+            )
+        else:
+            dados = _estrutura_padrao()
+            avisar_usuario(
+                "A configuração do menu estava corrompida e não havia cópia de segurança; "
+                f"recomecei do padrão. O arquivo antigo ficou em {nome_guardado}."
+            )
+        _migrar(dados)
+        _salvar(dados)
+        return dados
+    if not isinstance(dados, dict):
+        dados = _estrutura_padrao()
+        _salvar(dados)
+        return dados
+    if _migrar(dados):
+        _salvar(dados)  # grava a migração na hora - não só na próxima escrita
+    return dados
+
+
+def _carregar():
+    global _cache_dados, _cache_assinatura
+    if _lotes_abertos and _cache_dados is not None:
+        return _cache_dados
+    assinatura = _assinatura_arquivo()
+    if _cache_dados is not None and assinatura is not None and assinatura == _cache_assinatura:
+        return _cache_dados
+    dados = _ler_do_disco()
+    _cache_dados = dados
+    _cache_assinatura = _assinatura_arquivo()
     return dados
 
 
 def _salvar(dados):
-    os.makedirs(os.path.dirname(ARQUIVO_DADOS), exist_ok=True)
-    with open(ARQUIVO_DADOS, "w", encoding="utf-8") as f:
-        json.dump(dados, f, ensure_ascii=False, indent=2)
+    global _cache_dados, _cache_assinatura
+    armazenamento.gravar_json_atomico(ARQUIVO_DADOS, dados, manter_backup=True)
+    _cache_dados = dados
+    _cache_assinatura = _assinatura_arquivo()
+
+
+def esquecer_cache():
+    """Força a próxima leitura a vir do disco (testes)."""
+    global _cache_dados, _cache_assinatura, _lotes_abertos
+    _cache_dados = None
+    _cache_assinatura = None
+    _lotes_abertos = 0
 
 
 def _perfil(dados, nome=None):
@@ -470,13 +523,27 @@ def definir_icone_customizado_arquivo(item_real, caminho_origem):
     como ícone customizado do item. Copiar em vez de referenciar o arquivo
     original evita que o menu perca o ícone se o usuário mover/apagar a pasta
     de onde a imagem veio. Retorna o caminho relativo salvo."""
-    os.makedirs(PASTA_ICONES_CUSTOMIZADOS, exist_ok=True)
+    os.makedirs(armazenamento.resolver_caminho(PASTA_ICONES_CUSTOMIZADOS), exist_ok=True)
     _, ext = os.path.splitext(caminho_origem)
     nome_arquivo = re.sub(r"[^a-z0-9]+", "_", item_real.strip().lower()).strip("_") + ext.lower()
     caminho_destino = f"{PASTA_ICONES_CUSTOMIZADOS}/{nome_arquivo}"
-    shutil.copyfile(caminho_origem, caminho_destino)
+    destino_absoluto = armazenamento.resolver_caminho(caminho_destino)
+    if os.path.abspath(caminho_origem) != os.path.abspath(destino_absoluto):
+        shutil.copyfile(caminho_origem, destino_absoluto)
     definir_icone_customizado(item_real, caminho_destino)
     return caminho_destino
+
+
+def obter_personalizacoes():
+    """{item_real: {"apelido": ..., "icone": ...}} de tudo que tem apelido
+    e/ou ícone customizado - pra tela de Configurações listar."""
+    dados = _carregar()
+    resultado = {}
+    for item, apelido in dados.get("apelidos", {}).items():
+        resultado.setdefault(item, {})["apelido"] = apelido
+    for item, icone in dados.get("icones_customizados", {}).items():
+        resultado.setdefault(item, {})["icone"] = icone
+    return resultado
 
 
 # ---------- Steam: ordem manual + toggle por jogo ----------
@@ -551,70 +618,168 @@ def adicionar_pasta(nome_exibido, caminho):
     _salvar(dados)
 
 
-def garantir_categoria_projetos_padrao():
-    """Cria/atualiza a categoria "Projects" (1 item por projeto do
-    ecossistema) - chamado no boot (`iris/main.py::main`). Versionado por
-    flag persistida:
-    - v1 (`categoria_projetos_criada_v1`, 2026-08-30): cada item abria a
-      PASTA do projeto, ícone genérico "📁".
-    - v2 (`categoria_projetos_criada_v2`, 2026-09-01, pedido do usuário: "A
-      categoria Projects era p armazenar o inicializador de cada projeto, e
-      deveria ter o ícone dele"): cada item agora abre o INICIALIZADOR de
-      verdade (registrado como app manual, `app_launcher.adicionar_app_
-      manual`) e ganha o ícone oficial do projeto, ver `PROJETOS_PADRAO`
-      acima. As 2 pastas antigas que a v1 tinha criado pra projetos que
-      viraram launcher na v2 (ex.: "📁 ARGUS") ficam órfãs de propósito -
-      continuam existindo em `pastas`/aparecem em "📂 Pastas" se o usuário
-      quiser abrir a pasta em vez do launcher, só não fazem mais parte da
-      categoria "Projects".
+# ---------- Categoria "Projects": descoberta automática ----------
 
-    Cada versão só roda 1x - depois disso o usuário fica livre pra editar/
-    apagar a categoria sem que ela volte sozinha no próximo boot (diferente
-    das migrações de formato em `_carregar`, isso é um SEED de conteúdo)."""
+def obter_pasta_projetos():
+    """Pasta onde ficam os projetos do ecossistema. Sem nada configurado, é a
+    pasta que contém este repositório (os projetos irmãos ficam lado a lado)."""
+    return _carregar().get("pasta_projetos") or os.path.dirname(armazenamento.RAIZ_PROJETO)
+
+
+def salvar_pasta_projetos(caminho):
     dados = _carregar()
-    if dados.get("categoria_projetos_criada_v2"):
-        return
+    dados["pasta_projetos"] = (caminho or "").strip()
+    _salvar(dados)
 
-    from iris.core import app_launcher
 
-    itens = []
+def obter_pasta_icones_projetos():
+    return _carregar().get("pasta_icones_projetos", "")
 
-    def _adicionar_launcher(nome, caminho_launcher, caminho_icone):
-        app_launcher.adicionar_app_manual(nome, caminho_launcher)
-        itens.append(nome)
-        if caminho_icone and os.path.isfile(caminho_icone):
-            definir_icone_customizado_arquivo(nome, caminho_icone)
 
-    def _adicionar_pasta_item(nome, caminho_pasta, caminho_icone):
-        if nome not in obter_pastas_todas():
-            if not os.path.isdir(caminho_pasta):
-                return
-            adicionar_pasta(nome, caminho_pasta)
-        rotulo = f"📁 {nome}"
-        itens.append(rotulo)
-        if caminho_icone and os.path.isfile(caminho_icone):
-            definir_icone_customizado_arquivo(rotulo, caminho_icone)
+def salvar_pasta_icones_projetos(caminho):
+    dados = _carregar()
+    dados["pasta_icones_projetos"] = (caminho or "").strip()
+    _salvar(dados)
 
-    caminho_gaia_vbs = r"C:\Workspace\Project G.A.I.A\assistant\iniciar_galateia_oculto.vbs"
-    if os.path.isfile(caminho_gaia_vbs):
-        _adicionar_launcher("GAIA", caminho_gaia_vbs, ICONE_GAIA)
-    else:
-        _adicionar_pasta_item(NOME_PASTA_GAIA, r"C:\Workspace\Project G.A.I.A", ICONE_GAIA)
 
-    for nome, pasta, launcher, icone in PROJETOS_PADRAO:
-        if launcher and os.path.isfile(launcher):
-            _adicionar_launcher(nome, launcher, icone)
-        else:
-            _adicionar_pasta_item(nome, pasta, icone)
+def _nome_projeto(nome_pasta):
+    """"Project-ARGUS" -> "ARGUS"; "Project G.A.I.A" -> "GAIA". None se a
+    pasta não segue a convenção."""
+    if not nome_pasta.lower().startswith(PREFIXO_PASTA_PROJETO):
+        return None
+    resto = nome_pasta[len(PREFIXO_PASTA_PROJETO):]
+    if not resto or resto[0] not in "-_ ":
+        return None
+    nome = re.sub(r"[^A-Za-z0-9]+", "", resto).upper()
+    return nome or None
 
-    if itens:
-        salvar_categoria(NOME_CATEGORIA_PROJETOS, itens, icone="📁")
-        favoritos = obter_favoritos()
-        if NOME_CATEGORIA_PROJETOS not in favoritos:
-            salvar_favoritos(favoritos + [NOME_CATEGORIA_PROJETOS])
+
+def _achar_inicializador(pasta_projeto, nome):
+    """O inicializador escondido (`iniciar_*_oculto.vbs`) na raiz do projeto
+    ou 1 nível abaixo (a GAIA guarda o dela em `assistant/`); na falta dele,
+    `iniciar_*.bat` ou `<NOME>.bat` na raiz. None se não houver nenhum."""
+    for padrao in (
+        os.path.join(pasta_projeto, "iniciar_*_oculto.vbs"),
+        os.path.join(pasta_projeto, "*", "iniciar_*_oculto.vbs"),
+    ):
+        achados = sorted(glob.glob(padrao))
+        if achados:
+            return achados[0]
+    candidatos = sorted(
+        c for c in glob.glob(os.path.join(pasta_projeto, "iniciar_*.bat"))
+        if "debug" not in os.path.basename(c).lower()
+    )
+    if candidatos:
+        return candidatos[0]
+    direto = os.path.join(pasta_projeto, f"{nome}.bat")
+    return direto if os.path.isfile(direto) else None
+
+
+def _achar_icone_projeto(pasta_icones, nome):
+    if not pasta_icones or not os.path.isdir(pasta_icones):
+        return None
+    try:
+        arquivos = os.listdir(pasta_icones)
+    except OSError:
+        return None
+    for arquivo in arquivos:
+        base, ext = os.path.splitext(arquivo)
+        if base.lower() == nome.lower() and ext.lower() in EXTENSOES_ICONE_VALIDAS:
+            return os.path.join(pasta_icones, arquivo)
+    return None
+
+
+def descobrir_projetos(pasta_projetos=None, pasta_icones=None):
+    """Lista de {"nome", "pasta", "inicializador", "icone"} pra cada pasta
+    `Project*` encontrada. O próprio IRIS nunca ganha inicializador (a
+    instância que mostra o popup já É o IRIS rodando; abrir de novo só
+    bateria na trava de instância única) - o item dele abre a pasta."""
+    pasta_projetos = pasta_projetos or obter_pasta_projetos()
+    pasta_icones = obter_pasta_icones_projetos() if pasta_icones is None else pasta_icones
+    projetos = []
+    try:
+        entradas = sorted(os.listdir(pasta_projetos), key=str.lower)
+    except OSError:
+        return projetos
+    for entrada in entradas:
+        caminho = os.path.join(pasta_projetos, entrada)
+        nome = _nome_projeto(entrada)
+        if not nome or not os.path.isdir(caminho):
+            continue
+        proprio_iris = os.path.normcase(os.path.abspath(caminho)) == os.path.normcase(armazenamento.RAIZ_PROJETO)
+        projetos.append({
+            "nome": nome,
+            "pasta": caminho,
+            "inicializador": None if proprio_iris else _achar_inicializador(caminho, nome),
+            "icone": _achar_icone_projeto(pasta_icones, nome),
+        })
+    return projetos
+
+
+def sincronizar_categoria_projetos():
+    """Chamado no boot (`iris/main.py`) e pelo botão em Configurações.
+    Acrescenta à categoria "Projects" só os projetos que o IRIS ainda não
+    conhecia (`projetos_conhecidos`): um projeto novo no disco aparece
+    sozinho, e um item que o usuário removeu da categoria não volta. Se o
+    usuário apagou a categoria inteira, ela também não é recriada. Devolve os
+    nomes adicionados."""
+    dados = _carregar()
+    categorias = _perfil(dados).setdefault("categorias", {})
+    categoria = categorias.get(NOME_CATEGORIA_PROJETOS)
+    conhecidos = dados.get("projetos_conhecidos")
+    primeira_vez = conhecidos is None and not dados.get("categoria_projetos_criada_v2")
+    if conhecidos is None:
+        # Vindo do seed antigo (até a 0.3.0): tudo que já está na categoria
+        # conta como conhecido, com ou sem o prefixo de pasta.
+        conhecidos = [re.sub(r"[^A-Za-z0-9]+", "", i).upper() for i in (categoria or {}).get("itens", [])]
+    conhecidos = set(conhecidos)
+
+    projetos = descobrir_projetos()
+    novos = [p for p in projetos if p["nome"] not in conhecidos]
+    adicionados = []
+    if novos and (categoria is not None or primeira_vez):
+        from iris.core import app_launcher
+
+        itens = list((categoria or {}).get("itens", []))
+        for projeto in novos:
+            nome = projeto["nome"]
+            if projeto["inicializador"]:
+                app_launcher.adicionar_app_manual(nome, projeto["inicializador"])
+                rotulo = nome
+            else:
+                if nome not in obter_pastas_todas():
+                    adicionar_pasta(nome, projeto["pasta"])
+                rotulo = f"📁 {nome}"
+            if rotulo not in itens:
+                itens.append(rotulo)
+                adicionados.append(nome)
+            if projeto["icone"] and not obter_icone_customizado(rotulo):
+                try:
+                    definir_icone_customizado_arquivo(rotulo, projeto["icone"])
+                except OSError as erro:
+                    registro.warning("Ícone de %s não copiado: %s", nome, erro)
+        salvar_categoria(NOME_CATEGORIA_PROJETOS, itens, icone=(categoria or {}).get("icone", "📁"))
+        if primeira_vez:
+            favoritos = obter_favoritos()
+            if NOME_CATEGORIA_PROJETOS not in favoritos:
+                salvar_favoritos(favoritos + [NOME_CATEGORIA_PROJETOS])
 
     dados = _carregar()
+    dados["projetos_conhecidos"] = sorted(conhecidos | {p["nome"] for p in projetos})
     dados["categoria_projetos_criada_v2"] = True
+    _salvar(dados)
+    return adicionados
+
+
+# ---------- Atalho global ----------
+
+def obter_atalho():
+    return _carregar().get("atalho") or ATALHO_PADRAO
+
+
+def salvar_atalho(atalho_canonico):
+    dados = _carregar()
+    dados["atalho"] = atalho_canonico
     _salvar(dados)
 
 

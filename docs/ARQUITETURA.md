@@ -289,3 +289,64 @@ As pastas que a v1 tinha criado pra ARGUS/ECHO/ERIS/HESTIA/MOIRAI (que
 viraram launcher na v2) ficam ÓRFÃS de propósito, não removidas - continuam
 existindo em `pastas`, aparecem em "📂 Pastas" se o usuário preferir abrir a
 pasta em vez do launcher, só não fazem mais parte da categoria "Projects".
+
+## 0.4.0 (2026-11-09): persistência segura, popup sem disco, atalho nativo, Projects automática
+
+Esta seção vale sobre o que as seções anteriores dizem de `keyboard`,
+`_PLUGINS_OPCIONAIS`, `garantir_categoria_projetos_padrao` e
+`PROJETOS_PADRAO` (mantidas como histórico).
+
+**Persistência (`iris/core/armazenamento.py`).** Três regras: caminhos
+ancorados na raiz do repositório; gravação atômica (temporário +
+`os.replace`), com `.bak` da versão anterior nos arquivos que o usuário
+edita; e leitura que distingue arquivo AUSENTE de arquivo ILEGÍVEL. Só o
+ausente gera o padrão em silêncio. O ilegível é renomeado pra
+`.corrompido-<data>`, o `.bak` é restaurado e o usuário é avisado. Motivo: o
+`except Exception: pass` antigo transformava um JSON truncado em "primeira
+execução" e gravava o padrão por cima. `apps_escaneados.json` é a exceção
+(reconstruível: ilegível vira vazio).
+
+**Cache validado pelo disco (`radial_menu._carregar`).** A regra "sem cache"
+de 2026-09-06 existia pra edição feita por fora não se perder. Ela continua
+valendo, por outro meio: o dict fica em memória e cada chamada compara data
+de modificação + tamanho do arquivo; mudou, relê. `leitura_em_lote` é o
+atalho pra trechos só de leitura (uma repintura): confere o disco uma vez na
+entrada. Não usar em volta de gravações. Medido no Windows: cada `os.stat`
+custa cerca de 0,3 ms, por isso nem a versão "só stat" servia dentro do
+`paintEvent`.
+
+**Threads.** Trabalho em thread comum (métricas, checagem de plugins) volta
+pro widget por `Signal`. O popup tem `WA_DeleteOnClose`; a thread que termina
+depois do fechamento recebe `RuntimeError` no `emit` e ignora.
+
+**Disponibilidade de plugins (`plugins/registry.py`).** `providers_
+disponiveis()` checa em paralelo e alimenta um cache; `disponiveis_em_cache()`
+não toca a rede. O popup abre com o cache e dispara a checagem em segundo
+plano. A primeira checagem roda no boot.
+
+**Atalho (`iris/core/atalho.py` + `iris/ui/atalho_global.py`).** Texto
+interpretado por função pura (testável). Registro em dois modos: nativo
+(`RegisterHotKey`, mensagem `WM_HOTKEY` capturada por
+`QAbstractNativeEventFilter`) e compartilhado (gancho da `keyboard`), usado
+só quando o Windows recusa a combinação por já pertencer a outro programa.
+`RegisterHotKey` é exclusivo por combinação; o gancho não é. Por isso
+`keyboard` continua como dependência.
+
+**Plugins por entry points.** Grupo `iris.plugins`; cada entrada aponta pra
+função `registrar` do pacote. `_PLUGINS_LEGADOS` em `main.py` cobre pacotes
+instalados antes de declararem o entry point.
+
+**Projects automática (`radial_menu.sincronizar_categoria_projetos`).**
+Convenção: pasta `Project<separador><Nome>` dentro de `pasta_projetos`
+(padrão: a pasta que contém o repositório do IRIS). Inicializador, nesta
+ordem: `iniciar_*_oculto.vbs` na raiz ou 1 nível abaixo, `iniciar_*.bat`
+(exceto `debug`), `<NOME>.bat`; sem nenhum, o item abre a pasta. O próprio
+IRIS sempre abre a pasta. `projetos_conhecidos` guarda o que já foi oferecido
+uma vez: só o que não está nessa lista entra na categoria, então remover um
+item é definitivo. Config vinda da 0.3.0 (sem a lista) considera conhecidos
+os itens que já estão na categoria. Ícone: `<Nome>.<ext>` em
+`pasta_icones_projetos` (vazia por padrão), copiado pra
+`assets/icones_customizados/`.
+
+**Avisos (`iris/core/avisos.py`).** `avisar_usuario` registra em
+`data/iris.log` e mostra balão na bandeja. `print` não é mais usado.

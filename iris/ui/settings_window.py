@@ -10,11 +10,12 @@ import json
 import os
 import subprocess
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFileDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 import iris.core.app_launcher as app_launcher_mod
 import iris.core.radial_menu as radial_menu
+from iris.core import armazenamento
+from iris.core.atalho import descrever_atalho
 from iris.plugins import registry as plugin_registry
 from iris.ui.qt_widgets import (
     GAIA_GOLD, TEXT_COLOR,
@@ -26,11 +27,17 @@ from iris.ui.qt_widgets import (
 
 
 class JanelaConfiguracoes(ModalBase):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, ao_mudar_atalho=None, atalho_em_uso=None):
+        """`ao_mudar_atalho(texto) -> (ok, mensagem)` registra o atalho novo
+        na hora (`iris/main.py::IrisApp.aplicar_atalho`); `atalho_em_uso()`
+        devolve o que está registrado agora. Sem eles (janela aberta fora do
+        app, em teste), o campo só salva pra valer no próximo início."""
         super().__init__(parent)
         self.setWindowTitle("IRIS - Configurações")
         self.resize(720, 560)
         self._editando_categoria = None
+        self._ao_mudar_atalho = ao_mudar_atalho
+        self._atalho_em_uso = atalho_em_uso
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -41,6 +48,7 @@ class JanelaConfiguracoes(ModalBase):
         abas.addTab(self._construir_aba_categorias(), "Categorias")
         abas.addTab(self._construir_aba_pastas(), "Pastas")
         abas.addTab(self._construir_aba_steam(), "Steam")
+        abas.addTab(self._construir_aba_personalizar(), "Personalizar")
         abas.addTab(self._construir_aba_preferencias(), "Preferências")
 
     # ------------------------------------------------------------------
@@ -463,13 +471,212 @@ class JanelaConfiguracoes(ModalBase):
         executar_em_thread(_trabalho, _ao_terminar, parent=self)
 
     # ------------------------------------------------------------------
+    # Personalizar - apelido (texto exibido) e ícone de qualquer item, sem
+    # mudar a identidade usada pra abrir. Mesmo desenho da aba Categorias:
+    # lista do que existe em cima, formulário de criar/editar embaixo.
+    # ------------------------------------------------------------------
+    def _construir_aba_personalizar(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.addWidget(criar_descricao(
+            "Troca o nome exibido e/ou o ícone de um item do menu. O item "
+            "continua abrindo a mesma coisa; muda só a aparência."
+        ))
+
+        self._scroll_personalizacoes, self._layout_personalizacoes = criar_scroll_area()
+        layout.addWidget(self._scroll_personalizacoes, stretch=1)
+
+        layout.addWidget(criar_titulo_secao("Personalizar um item", tamanho=12))
+        self._dropdown_item_personalizar = criar_dropdown(self._itens_personalizaveis())
+        self._dropdown_item_personalizar.currentTextChanged.connect(self._carregar_personalizacao)
+        layout.addWidget(self._dropdown_item_personalizar)
+
+        linha = QHBoxLayout()
+        self._campo_apelido = criar_lineedit()
+        self._campo_apelido.setPlaceholderText("Nome exibido (vazio = nome original)")
+        linha.addWidget(self._campo_apelido, stretch=2)
+        self._campo_icone_item = criar_lineedit()
+        self._campo_icone_item.setPlaceholderText("Emoji ou imagem")
+        linha.addWidget(self._campo_icone_item, stretch=1)
+        botao_imagem = criar_botao("Imagem...")
+        botao_imagem.clicked.connect(self._escolher_imagem_icone)
+        linha.addWidget(botao_imagem)
+        botao_salvar = criar_botao("Salvar", preenchido=True)
+        botao_salvar.clicked.connect(self._salvar_personalizacao)
+        linha.addWidget(botao_salvar)
+        layout.addLayout(linha)
+
+        self._imagem_icone_escolhida = None
+        self._atualizar_lista_personalizacoes()
+        self._carregar_personalizacao(self._dropdown_item_personalizar.currentText())
+        return widget
+
+    def _itens_personalizaveis(self):
+        """Tudo que pode aparecer numa fatia: favoritos, itens especiais,
+        categorias e o que há dentro delas, pastas, apps - sem repetir, na
+        ordem em que o usuário mais provavelmente procura (o que já está no
+        menu primeiro)."""
+        categorias = radial_menu.obter_categorias()
+        vistos, itens = set(), []
+        grupos = [
+            radial_menu.obter_favoritos(),
+            list(radial_menu.obter_personalizacoes().keys()),
+            list(categorias.keys()),
+            [i for dados in categorias.values() for i in dados.get("itens", [])],
+            [f"📁 {nome}" for nome in radial_menu.obter_pastas_todas().keys()],
+            list(radial_menu.ITENS_ESPECIAIS),
+            [p.rotulo_categoria for p in plugin_registry.providers_registrados()],
+            app_launcher_mod.listar_nomes_apps_disponiveis(),
+        ]
+        for grupo in grupos:
+            for item in grupo:
+                if item not in vistos:
+                    vistos.add(item)
+                    itens.append(item)
+        return itens
+
+    def _atualizar_lista_personalizacoes(self):
+        while self._layout_personalizacoes.count():
+            item = self._layout_personalizacoes.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        personalizacoes = radial_menu.obter_personalizacoes()
+        if not personalizacoes:
+            self._layout_personalizacoes.addWidget(criar_descricao("Nenhum item personalizado ainda."))
+            return
+        for item_real, dados in personalizacoes.items():
+            frame = criar_frame_item()
+            linha = QHBoxLayout(frame)
+            linha.setContentsMargins(10, 6, 10, 6)
+
+            partes = []
+            if dados.get("apelido"):
+                partes.append(f"nome: {dados['apelido']}")
+            icone = dados.get("icone")
+            if icone:
+                eh_imagem = radial_menu.eh_caminho_icone_customizado(icone)
+                partes.append("ícone: imagem própria" if eh_imagem else f"ícone: {icone}")
+            linha.addWidget(_LabelSimples(f"{item_real}  -  {', '.join(partes)}"), stretch=1)
+
+            botao_editar = criar_botao_pequeno("✎", GAIA_GOLD)
+            botao_editar.clicked.connect(lambda _c=False, i=item_real: self._editar_personalizacao(i))
+            linha.addWidget(botao_editar)
+
+            botao_remover = criar_botao_pequeno("✕", "#f38ba8")
+            botao_remover.clicked.connect(lambda _c=False, i=item_real: self._remover_personalizacao(i))
+            linha.addWidget(botao_remover)
+
+            self._layout_personalizacoes.addWidget(frame)
+
+    def _editar_personalizacao(self, item_real):
+        if self._dropdown_item_personalizar.findText(item_real) < 0:
+            self._dropdown_item_personalizar.addItem(item_real)
+        self._dropdown_item_personalizar.setCurrentText(item_real)
+        self._carregar_personalizacao(item_real)
+
+    def _carregar_personalizacao(self, item_real):
+        dados = radial_menu.obter_personalizacoes().get(item_real, {})
+        self._imagem_icone_escolhida = None
+        self._campo_apelido.setText(dados.get("apelido", ""))
+        icone = dados.get("icone", "")
+        if radial_menu.eh_caminho_icone_customizado(icone):
+            self._campo_icone_item.setText("")
+            self._campo_icone_item.setPlaceholderText("imagem própria (mantida)")
+        else:
+            self._campo_icone_item.setText(icone)
+            self._campo_icone_item.setPlaceholderText("Emoji ou imagem")
+
+    def _escolher_imagem_icone(self):
+        extensoes = " ".join(f"*{e}" for e in radial_menu.EXTENSOES_ICONE_VALIDAS)
+        caminho, _ = QFileDialog.getOpenFileName(self, "Escolher imagem do ícone", "", f"Imagens ({extensoes})")
+        if caminho:
+            self._imagem_icone_escolhida = caminho
+            self._campo_icone_item.setText("")
+            self._campo_icone_item.setPlaceholderText(os.path.basename(caminho))
+
+    def _salvar_personalizacao(self):
+        item_real = self._dropdown_item_personalizar.currentText()
+        if not item_real:
+            return
+        apelido = self._campo_apelido.text().strip()
+        if apelido:
+            radial_menu.definir_apelido(item_real, apelido)
+        else:
+            radial_menu.remover_apelido(item_real)
+
+        emoji = self._campo_icone_item.text().strip()
+        if self._imagem_icone_escolhida:
+            try:
+                radial_menu.definir_icone_customizado_arquivo(item_real, self._imagem_icone_escolhida)
+            except OSError as erro:
+                avisar(self, "Imagem não copiada", str(erro))
+                return
+        elif emoji:
+            radial_menu.definir_icone_customizado(item_real, emoji)
+        # campo vazio sem imagem nova: mantém o ícone que já estava (pra
+        # tirar, use o ✕ da lista)
+        self._atualizar_lista_personalizacoes()
+        self._carregar_personalizacao(item_real)
+
+    def _remover_personalizacao(self, item_real):
+        radial_menu.remover_apelido(item_real)
+        radial_menu.remover_icone_customizado(item_real)
+        self._atualizar_lista_personalizacoes()
+        self._carregar_personalizacao(self._dropdown_item_personalizar.currentText())
+
+    # ------------------------------------------------------------------
     # Preferências
     # ------------------------------------------------------------------
     def _construir_aba_preferencias(self):
         widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setAlignment(Qt.AlignTop)
+        layout_externo = QVBoxLayout(widget)
+        layout_externo.setContentsMargins(0, 0, 0, 0)
+        scroll, layout = criar_scroll_area()
+        layout_externo.addWidget(scroll)
         layout.setSpacing(14)
+
+        # --- Atalho ---
+        layout.addWidget(criar_titulo_secao("Atalho do menu", tamanho=12))
+        linha_atalho = QHBoxLayout()
+        atalho_atual = (self._atalho_em_uso() if self._atalho_em_uso else None) or radial_menu.obter_atalho()
+        self._campo_atalho = criar_lineedit(atalho_atual)
+        self._campo_atalho.setPlaceholderText("ex.: ctrl+alt+space")
+        self._campo_atalho.returnPressed.connect(self._aplicar_atalho)
+        linha_atalho.addWidget(self._campo_atalho, stretch=1)
+        botao_atalho = criar_botao("Aplicar atalho")
+        botao_atalho.clicked.connect(self._aplicar_atalho)
+        linha_atalho.addWidget(botao_atalho)
+        layout.addLayout(linha_atalho)
+        self._descricao_atalho = criar_descricao(self._texto_atalho(atalho_atual))
+        layout.addWidget(self._descricao_atalho)
+
+        # --- Perfis ---
+        layout.addWidget(criar_titulo_secao("Perfis", tamanho=12))
+        layout.addWidget(criar_descricao("Cada perfil tem seus próprios favoritos, categorias e ordem da Steam. Pastas, apelidos e ícones valem pra todos."))
+        linha_perfil = QHBoxLayout()
+        self._dropdown_perfil = criar_dropdown(radial_menu.obter_nomes_perfis(), radial_menu.obter_perfil_atual())
+        self._dropdown_perfil.currentTextChanged.connect(self._trocar_perfil)
+        linha_perfil.addWidget(self._dropdown_perfil, stretch=1)
+        self._campo_nome_perfil = criar_lineedit()
+        self._campo_nome_perfil.setPlaceholderText("Nome do perfil")
+        linha_perfil.addWidget(self._campo_nome_perfil, stretch=1)
+        layout.addLayout(linha_perfil)
+        linha_perfil_botoes = QHBoxLayout()
+        botao_novo_perfil = criar_botao("Criar cópia do atual")
+        botao_novo_perfil.clicked.connect(self._criar_perfil)
+        linha_perfil_botoes.addWidget(botao_novo_perfil)
+        botao_renomear_perfil = criar_botao("Renomear atual")
+        botao_renomear_perfil.clicked.connect(self._renomear_perfil)
+        linha_perfil_botoes.addWidget(botao_renomear_perfil)
+        linha_perfil_botoes.addStretch(1)
+        # ação destrutiva longe das frequentes, no fim da linha
+        botao_excluir_perfil = criar_botao("Excluir atual", cor_texto="#f38ba8")
+        botao_excluir_perfil.clicked.connect(self._excluir_perfil)
+        linha_perfil_botoes.addWidget(botao_excluir_perfil)
+        layout.addLayout(linha_perfil_botoes)
+
+        layout.addWidget(criar_titulo_secao("Favoritos", tamanho=12))
 
         switch_ranking = Switch("Ranking automático ligado", "Ranking automático desligado",
                                  marcado=radial_menu.obter_ranking_automatico_ativo())
@@ -497,6 +704,27 @@ class JanelaConfiguracoes(ModalBase):
         linha_limite_sub.addStretch(1)
         layout.addLayout(linha_limite_sub)
 
+        # --- Projects ---
+        layout.addWidget(criar_titulo_secao("Categoria Projects", tamanho=12))
+        layout.addWidget(criar_descricao(
+            "Ao iniciar, o IRIS procura pastas \"Project-...\" e acrescenta à categoria Projects "
+            "as que ainda não conhecia. O que você remover da categoria não volta."
+        ))
+        linha_proj = QHBoxLayout()
+        linha_proj.addWidget(_LabelSimples("Pasta dos projetos:"))
+        self._campo_pasta_projetos = criar_lineedit(radial_menu.obter_pasta_projetos())
+        linha_proj.addWidget(self._campo_pasta_projetos, stretch=1)
+        layout.addLayout(linha_proj)
+        linha_icones = QHBoxLayout()
+        linha_icones.addWidget(_LabelSimples("Pasta de ícones (Nome.png):"))
+        self._campo_pasta_icones = criar_lineedit(radial_menu.obter_pasta_icones_projetos())
+        self._campo_pasta_icones.setPlaceholderText("opcional")
+        linha_icones.addWidget(self._campo_pasta_icones, stretch=1)
+        layout.addLayout(linha_icones)
+        botao_sincronizar = criar_botao("Salvar e procurar projetos agora")
+        botao_sincronizar.clicked.connect(self._sincronizar_projetos)
+        layout.addWidget(botao_sincronizar)
+
         layout.addWidget(criar_titulo_secao("Plugins", tamanho=12))
         registrados = plugin_registry.providers_registrados()
         if not registrados:
@@ -510,8 +738,9 @@ class JanelaConfiguracoes(ModalBase):
             layout.addWidget(self._btn_instalar_plugin_gaia)
             layout.addWidget(criar_descricao("Instala plugins/iris_plugin_gaia (repo irmão) - depois de reiniciar o IRIS, categorias da GAIA aparecem no popup se ela estiver rodando."))
         else:
+            disponiveis = {p.id for p in plugin_registry.disponiveis_em_cache()}
             for provider in registrados:
-                disponivel = provider.esta_disponivel()
+                disponivel = provider.id in disponiveis
                 status = "disponível agora" if disponivel else "instalado, indisponível agora"
                 layout.addWidget(criar_descricao(f"• {provider.rotulo_categoria}  ({provider.id})  -  {status}"))
                 capacidades = ", ".join(sorted(provider.capacidades())) or "sem efeito externo declarado"
@@ -520,8 +749,108 @@ class JanelaConfiguracoes(ModalBase):
                     f"{provider.tempo_limite_segundos:g}s."
                 ))
 
-        layout.addStretch(1)
         return widget
+
+    def _texto_atalho(self, atalho):
+        return f"Em uso: {descrever_atalho(atalho)}. Aceita ctrl, alt, shift, win + uma tecla (letra, número, F1-F24, space, tab...)."
+
+    def _aplicar_atalho(self):
+        texto = self._campo_atalho.text().strip()
+        if self._ao_mudar_atalho is not None:
+            ok, resultado = self._ao_mudar_atalho(texto)
+        else:
+            from iris.core.atalho import AtalhoInvalido, interpretar_atalho
+            try:
+                _, _, resultado = interpretar_atalho(texto)
+                radial_menu.salvar_atalho(resultado)
+                ok = True
+            except AtalhoInvalido as erro:
+                ok, resultado = False, str(erro)
+        if not ok:
+            avisar(self, "Atalho não aplicado", resultado)
+            return
+        self._campo_atalho.setText(resultado)
+        self._descricao_atalho.setText(self._texto_atalho(resultado))
+
+    def _recarregar_dados_do_perfil(self):
+        self._atualizar_lista_favoritos()
+        self._dropdown_add_favorito.clear()
+        self._dropdown_add_favorito.addItems(self._itens_disponiveis_para_favoritar())
+        self._atualizar_lista_categorias()
+        self._preencher_checkboxes_itens_categoria()
+        self._atualizar_lista_steam()
+
+    def _recarregar_dropdown_perfis(self):
+        self._dropdown_perfil.blockSignals(True)
+        self._dropdown_perfil.clear()
+        self._dropdown_perfil.addItems(radial_menu.obter_nomes_perfis())
+        self._dropdown_perfil.setCurrentText(radial_menu.obter_perfil_atual())
+        self._dropdown_perfil.blockSignals(False)
+
+    def _trocar_perfil(self, nome):
+        if not nome or nome == radial_menu.obter_perfil_atual():
+            return
+        radial_menu.definir_perfil_atual(nome)
+        self._recarregar_dados_do_perfil()
+
+    def _nome_perfil_digitado(self):
+        nome = self._campo_nome_perfil.text().strip()
+        if not nome:
+            avisar(self, "Perfil sem nome", "Digite o nome do perfil no campo ao lado.")
+            return None
+        if nome in radial_menu.obter_nomes_perfis():
+            avisar(self, "Nome em uso", f"Já existe um perfil chamado '{nome}'.")
+            return None
+        return nome
+
+    def _criar_perfil(self):
+        nome = self._nome_perfil_digitado()
+        if not nome:
+            return
+        radial_menu.criar_perfil(nome, copiar_de=radial_menu.obter_perfil_atual())
+        radial_menu.definir_perfil_atual(nome)
+        self._campo_nome_perfil.clear()
+        self._recarregar_dropdown_perfis()
+        self._recarregar_dados_do_perfil()
+
+    def _renomear_perfil(self):
+        nome = self._nome_perfil_digitado()
+        if not nome:
+            return
+        radial_menu.renomear_perfil(radial_menu.obter_perfil_atual(), nome)
+        self._campo_nome_perfil.clear()
+        self._recarregar_dropdown_perfis()
+
+    def _excluir_perfil(self):
+        atual = radial_menu.obter_perfil_atual()
+        if len(radial_menu.obter_nomes_perfis()) <= 1:
+            avisar(self, "Único perfil", "Não dá pra excluir o único perfil que existe.")
+            return
+        if not confirmar_acao(self, "Excluir perfil", f"Excluir o perfil '{atual}' com os favoritos e categorias dele?"):
+            return
+        radial_menu.remover_perfil(atual)
+        self._recarregar_dropdown_perfis()
+        self._recarregar_dados_do_perfil()
+
+    def _sincronizar_projetos(self):
+        pasta = self._campo_pasta_projetos.text().strip()
+        icones = self._campo_pasta_icones.text().strip()
+        if pasta and not os.path.isdir(pasta):
+            avisar(self, "Pasta inválida", "A pasta dos projetos não existe neste PC.")
+            return
+        if icones and not os.path.isdir(icones):
+            avisar(self, "Pasta inválida", "A pasta de ícones não existe neste PC.")
+            return
+        padrao = os.path.dirname(armazenamento.RAIZ_PROJETO)
+        radial_menu.salvar_pasta_projetos("" if os.path.normcase(pasta) == os.path.normcase(padrao) else pasta)
+        radial_menu.salvar_pasta_icones_projetos(icones)
+        adicionados = radial_menu.sincronizar_categoria_projetos()
+        self._atualizar_lista_categorias()
+        self._preencher_checkboxes_itens_categoria()
+        if adicionados:
+            avisar(self, "Projects atualizada", f"Adicionado(s): {', '.join(adicionados)}.")
+        else:
+            avisar(self, "Projects", "Nenhum projeto novo encontrado.")
 
     def _instalar_plugin_gaia(self):
         self._btn_instalar_plugin_gaia.setEnabled(False)
