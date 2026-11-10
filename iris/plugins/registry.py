@@ -5,9 +5,12 @@ plugin opcionais instalados) ANTES do popup abrir pela 1a vez. O popup
 (`iris/ui/menu_radial_qt.py`) só consulta `providers_disponiveis()`, nunca
 conhece nenhum plugin especifico em tempo de import."""
 
-_providers = []
+from concurrent.futures import ThreadPoolExecutor
 
 from iris.plugins.base import CAPACIDADES_CONHECIDAS
+
+_providers = []
+_ultimos_disponiveis = []
 
 
 def registrar_provider(provider):
@@ -38,18 +41,41 @@ def providers_registrados():
     return list(_providers)
 
 
+def _responde(provider):
+    try:
+        return bool(provider.esta_disponivel())
+    except Exception:
+        return False
+
+
 def providers_disponiveis():
-    """Só os providers que responderam `esta_disponivel() == True` AGORA -
-    consultado pelo popup toda vez que abre (nunca cacheado aqui, o estado de
-    disponibilidade pode mudar a qualquer momento, ex.: GAIA foi fechada)."""
-    disponiveis = []
-    for provider in _providers:
-        try:
-            if provider.esta_disponivel():
-                disponiveis.append(provider)
-        except Exception:
-            continue
+    """Só os providers que responderam `esta_disponivel() == True` AGORA.
+    As checagens rodam em PARALELO: cada uma pode esperar o timeout de uma
+    porta fechada, e em série o atraso somava (4 serviços parados = 4
+    timeouts). Bloqueia até a mais lenta terminar - na thread da interface,
+    preferir `disponiveis_em_cache()` + `atualizar_disponibilidade()` numa
+    thread. O resultado também alimenta o cache."""
+    global _ultimos_disponiveis
+    providers = list(_providers)
+    if not providers:
+        _ultimos_disponiveis = []
+        return []
+    with ThreadPoolExecutor(max_workers=len(providers)) as executor:
+        respostas = list(executor.map(_responde, providers))
+    disponiveis = [p for p, ok in zip(providers, respostas) if ok]
+    _ultimos_disponiveis = [p.id for p in disponiveis]
     return disponiveis
+
+
+atualizar_disponibilidade = providers_disponiveis
+
+
+def disponiveis_em_cache():
+    """Resultado da ÚLTIMA checagem, sem tocar a rede - o popup abre na hora
+    com isto e se corrige quando a checagem em segundo plano termina. Vazio
+    antes da primeira checagem."""
+    ids = set(_ultimos_disponiveis)
+    return [p for p in _providers if p.id in ids]
 
 
 def provider_por_categoria(rotulo_categoria):

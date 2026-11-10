@@ -28,7 +28,7 @@ class _Provider(ActionProvider):
         self.executados.append(item)
 
 
-def main():
+def testar_contrato_de_capacidades():
     provider = _Provider()
     registry.registrar_provider(provider)
     assert registry.executar_provider(provider, "normal") is True
@@ -49,8 +49,9 @@ def main():
         pass
     else:
         raise AssertionError("capacidade desconhecida deveria ser rejeitada")
-    print("OK: manifesto, fail-closed e confirmação de plugins validados")
+    registry.remover_provider("teste")
 
 
 if __name__ == "__main__":
-    main()
+    testar_contrato_de_capacidades()
+    print("OK: manifesto, fail-closed e confirmação de plugins validados")

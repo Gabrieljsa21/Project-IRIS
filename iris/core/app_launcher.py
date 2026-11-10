@@ -8,36 +8,37 @@ de voz/LLM (`<APP:abrir:...>`) e escrita ditada no Bloco de Notas, que são
 features de PRODUTO da GAIA (não deste launcher) e ficaram de fora do porte."""
 
 import os
-import json
-import logging
 import subprocess
 
 import psutil
 
-logging.basicConfig(level=logging.INFO, format='%(message)s')
-logger = logging.getLogger(__name__)
+from iris.core import armazenamento
+from iris.core.avisos import registro
 
 # Apps manuais - registro PRÓPRIO, separado do escaneamento automático
 # (apps_scanner.py) de propósito: um app manual nunca deve ser removido só
 # porque um reescaneamento não o encontrou nesse ciclo (ele não é
 # "descoberto", foi apontado explicitamente pelo usuário).
-ARQUIVO_APPS_MANUAIS = "data/apps_manuais.json"
+ARQUIVO_APPS_MANUAIS = armazenamento.caminho_dados("apps_manuais.json")
 
 
 def _carregar_apps_manuais():
-    if not os.path.exists(ARQUIVO_APPS_MANUAIS):
-        return {}
+    """Arquivo ilegível levanta `ArquivoIlegivel` em vez de virar {} - tratar
+    como vazio faria a próxima gravação apagar todos os apps manuais."""
+    dados = armazenamento.ler_json(ARQUIVO_APPS_MANUAIS)
+    return dados if isinstance(dados, dict) else {}
+
+
+def _carregar_apps_manuais_tolerante():
     try:
-        with open(ARQUIVO_APPS_MANUAIS, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, json.JSONDecodeError):
+        return _carregar_apps_manuais()
+    except armazenamento.ArquivoIlegivel as erro:
+        registro.error("Apps manuais ilegíveis: %s", erro)
         return {}
 
 
 def _salvar_apps_manuais(dados):
-    os.makedirs(os.path.dirname(ARQUIVO_APPS_MANUAIS), exist_ok=True)
-    with open(ARQUIVO_APPS_MANUAIS, "w", encoding="utf-8") as f:
-        json.dump(dados, f, ensure_ascii=False, indent=2)
+    armazenamento.gravar_json_atomico(ARQUIVO_APPS_MANUAIS, dados, manter_backup=True)
 
 
 def adicionar_app_manual(nome, caminho):
@@ -59,7 +60,7 @@ def remover_app_manual(nome):
 
 
 def listar_apps_manuais():
-    return dict(_carregar_apps_manuais())
+    return dict(_carregar_apps_manuais_tolerante())
 
 
 # Apps fixos - conhecidos desde sempre, sem depender de escaneamento nenhum.
@@ -143,7 +144,7 @@ def listar_nomes_apps_disponiveis():
     from iris.core import apps_scanner
     apps = dict(APPS_FIXOS)
     apps.update(apps_scanner.carregar_apps_escaneados())
-    apps.update(_carregar_apps_manuais())
+    apps.update(_carregar_apps_manuais_tolerante())
     return sorted(apps.keys())
 
 
@@ -163,7 +164,7 @@ class AppLauncher:
         # Apps manuais - nunca marcados "escaneado", por isso sobrevivem a
         # qualquer `_mesclar_apps_escaneados`/`escanear_apps()` sem precisar
         # ser "encontrados" de novo.
-        self.apps.update(_carregar_apps_manuais())
+        self.apps.update(_carregar_apps_manuais_tolerante())
 
     def _mesclar_apps_escaneados(self, apps_escaneados):
         """Substitui SÓ as entradas marcadas escaneado=True (nunca mexe nos
@@ -198,12 +199,14 @@ class AppLauncher:
         return msg
 
     def log(self, message):
+        registro.info(message)
         if self.output_callback:
             self.output_callback(message)
-        else:
-            print(message)
 
-    def find_app(self, command):
+    def find_app(self, command, exato=False):
+        """`exato=True` (usado pelo clique no menu, que já tem o nome real do
+        item) só aceita nome ou apelido idêntico. A busca aproximada pelas
+        últimas palavras existe pra texto livre e pode devolver outro app."""
         if not command:
             return None, None
         command = command.lower().strip()
@@ -211,6 +214,8 @@ class AppLauncher:
         for app_name, app_data in self.apps.items():
             if command == app_name.lower() or command in [a.lower() for a in app_data.get('aliases', [])]:
                 return app_name, app_data['target']
+        if exato:
+            return None, None
 
         last_words = ' '.join(command.split()[-2:])
         for app_name, app_data in self.apps.items():
@@ -254,10 +259,16 @@ class AppLauncher:
             return False
 
     def open_app_cmd(self, app_name, target):
+        """`os.startfile` (ShellExecute) abre .exe, .lnk, .vbs, URL,
+        `ms-settings:` e nomes como "calc" sem passar por um shell - caminho
+        com espaço ou aspas não precisa de escape. Se o ShellExecute recusar,
+        cai no `start` do cmd, como era antes."""
         try:
-            # Aspas + título vazio pro "start" - necessário pros targets
-            # escaneados (caminho de .exe/.lnk pode ter espaço), e continua
-            # funcionando igual pros targets fixos (URL, "calc", "notepad").
+            os.startfile(target)
+            return True
+        except OSError:
+            pass
+        try:
             subprocess.Popen(f'start "" "{target}"', shell=True)
             return True
         except Exception as e:

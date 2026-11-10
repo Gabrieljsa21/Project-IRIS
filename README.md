@@ -8,9 +8,9 @@ Menu radial para Windows que abre programas, pastas, sites, atalhos e jogos da S
 
 ## Recursos principais
 
-- menu circular aberto por `Ctrl+Alt+Espaço`;
+- menu circular aberto por `Ctrl+Alt+Espaço` (atalho configurável);
 - favoritos e categorias editáveis;
-- busca de programas e jogos instalados;
+- busca por digitação, sem depender de acento, e navegação por setas e Enter;
 - suporte a várias páginas e níveis;
 - ícone na bandeja;
 - sistema de plugins opcionais.
@@ -40,15 +40,22 @@ uv pip install -e .
 python -m iris.main
 ```
 
-Na primeira execução, o IRIS cria `data/menu_radial_config.json`. Use o ícone da bandeja para abrir as configurações. `iniciar_iris_oculto.vbs` inicia o menu sem terminal visível.
+Na primeira execução, o IRIS cria `data/menu_radial_config.json`. Use o ícone da bandeja para abrir as configurações. `iniciar_iris_oculto.vbs` inicia o menu sem terminal visível. Avisos aparecem em balão da bandeja e ficam em `data/iris.log`.
+
+Para rodar os testes:
+
+```powershell
+uv pip install -e ".[dev]"
+python -m pytest
+```
 
 ## Integrações com outros projetos
 
 - **GAIA:** o plugin `iris_plugin_gaia` adiciona atalhos para o avatar, funções da assistente e ações do VTube Studio.
 - **MOIRAI:** o plugin `iris_plugin_moirai` adiciona a categoria Watchlist e acesso rápido aos animes acompanhados.
-- **Projetos do ecossistema:** a categoria Projects abre os inicializadores com os ícones oficiais quando eles estão instalados.
+- **Projetos do ecossistema:** a categoria Projects reúne as pastas `Project-*` vizinhas, encontradas sozinhas a cada início, e abre o inicializador de cada uma.
 
-Todas as integrações são opcionais. O menu principal funciona sozinho.
+Todas as integrações são opcionais. O menu principal funciona sozinho. Um plugin se registra pelo grupo de entry points `iris.plugins` no próprio `pyproject.toml`.
 
 ## Documentação
 

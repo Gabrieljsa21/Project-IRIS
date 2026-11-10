@@ -5,6 +5,10 @@ description = "Plugin opcional do IRIS que conecta o popup radial à GAIA (Proje
 requires-python = ">=3.11"
 dependencies = []
 
+# O IRIS descobre plugins por este grupo de entry points (iris/main.py).
+[project.entry-points."iris.plugins"]
+gaia = "iris_plugin_gaia:registrar"
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
