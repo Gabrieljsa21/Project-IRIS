@@ -12,6 +12,33 @@ foi documentada retroativamente; o histórico versionado começa em `0.1.0`.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-13
+
+### Adicionado
+
+- **Canal de comandos local** (`iris/core/canal.py`): a porta 8767, que já
+  era a trava de instância única, agora escuta. Uma linha por conexão
+  (`abrir_menu`, `configuracoes`, `ping`), resposta `ok`; só aceita
+  127.0.0.1. `abrir_menu` não fecha o menu se ele já estiver aberto.
+- **Modo sem ícone na bandeja:** com `IRIS_SEM_ICONE_BANDEJA=1` no ambiente
+  (a GAIA 0.46.0 marca ao ligar o IRIS), o ícone próprio não aparece e o
+  controle passa a ser Sentinelas → IRIS na bandeja da GAIA, como já
+  acontece com a ERIS. Ligado pelo `.vbs` do IRIS, o ícone continua.
+- **Aviso flutuante** (`iris/ui/aviso_flutuante.py`): sem o ícone, o balão
+  do Windows não aparece; os avisos saem num cartão curto perto do relógio,
+  que some em 6 s ou com um clique.
+
+### Corrigido
+
+- **Menu aberto por fora ficava sem teclado:** aberto por um comando com o
+  IRIS em segundo plano, o Windows recusava o primeiro plano; Esc e busca
+  não funcionavam e o menu não fechava ao clicar fora.
+  `iris/ui/primeiro_plano.py` liga por um instante a fila de entrada à da
+  janela da frente (`AttachThreadInput`) e traz menu e Configurações para a
+  frente. Validado ao vivo: Esc fecha o menu aberto pelo canal e as
+  Configurações abrem na frente.
+- Avisos chegam à tela por sinal do Qt, de qualquer thread.
+
 ## [0.4.0] - 2026-11-10
 
 ### Corrigido
