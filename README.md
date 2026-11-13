@@ -42,6 +42,8 @@ python -m iris.main
 
 Na primeira execução, o IRIS cria `data/menu_radial_config.json`. Use o ícone da bandeja para abrir as configurações. `iniciar_iris_oculto.vbs` inicia o menu sem terminal visível. Avisos aparecem em balão da bandeja e ficam em `data/iris.log`.
 
+Ligado pela GAIA, o IRIS roda sem ícone próprio na bandeja: o controle fica em Sentinelas → IRIS, no menu da bandeja da GAIA, e os avisos aparecem num cartão perto do relógio.
+
 Para rodar os testes:
 
 ```powershell

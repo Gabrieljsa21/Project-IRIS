@@ -1176,7 +1176,7 @@ def mostrar_menu_radial_qt():
     janela = RadialMenuQt()
     _popup_atual = janela
     janela.show()
-    janela.raise_()
-    janela.activateWindow()
+    from iris.ui.primeiro_plano import trazer_para_frente
+    trazer_para_frente(janela)
     janela.setFocus()
     return "aberto"

@@ -350,3 +350,24 @@ os itens que já estão na categoria. Ícone: `<Nome>.<ext>` em
 
 **Avisos (`iris/core/avisos.py`).** `avisar_usuario` registra em
 `data/iris.log` e mostra balão na bandeja. `print` não é mais usado.
+
+## 0.5.0 (2026-11-13): canal de comandos e modo sem ícone
+
+**Canal (`iris/core/canal.py`).** O `bind` na porta 8767 continua sendo a
+trava de instância única, agora seguido de `listen`. Uma thread aceita uma
+conexão por vez, lê uma linha e entrega o comando por `Signal` à thread do
+Qt (`IrisApp.comando_recebido`). Texto puro, sem HTTP: o único cliente é a
+GAIA na mesma máquina e o protocolo cabe numa linha. Só 127.0.0.1.
+
+**Sem ícone (`IRIS_SEM_ICONE_BANDEJA=1`).** Quem liga o IRIS decide: a GAIA
+marca a variável e controla o IRIS pelo menu da bandeja dela (Sentinelas);
+o `.vbs` do IRIS não marca e o ícone aparece. Sem ícone,
+`QSystemTrayIcon.showMessage` não tem onde mostrar o balão, então os avisos
+vão para `iris/ui/aviso_flutuante.py`.
+
+**Primeiro plano (`iris/ui/primeiro_plano.py`).** Pelo atalho, o Windows
+deixa o IRIS tomar a frente (o Alt está pressionado). Por um comando do
+canal, não: o `activateWindow` só piscava a barra de tarefas e o menu ficava
+sem teclado, o que quebra Esc, busca e o fechamento ao perder o foco.
+`AttachThreadInput` com a thread da janela da frente, `SetForegroundWindow`
+e desligar a ligação logo depois resolve sem simular teclas.

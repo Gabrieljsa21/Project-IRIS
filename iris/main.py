@@ -8,19 +8,25 @@ deles está de pé; sem plugin nenhum, o popup funciona igual.
 
 Atalho global: `iris/ui/atalho_global.py` - `RegisterHotKey` do Windows, com
 o gancho da biblioteca `keyboard` de reserva quando a combinação já pertence
-a outro programa. Nos dois modos a chamada chega aqui já na thread do Qt."""
+a outro programa. Nos dois modos a chamada chega aqui já na thread do Qt.
+
+Sem ícone próprio (0.5.0): com `IRIS_SEM_ICONE_BANDEJA=1` no ambiente (a GAIA
+marca ao ligar o IRIS), o ícone da bandeja não aparece e o controle passa a
+ser o menu da bandeja da GAIA, que fala com o IRIS pelo canal de comandos
+(`iris/core/canal.py`, porta 8767). Os avisos vão para um aviso flutuante
+próprio (`iris/ui/aviso_flutuante.py`). Ligado pelo `.vbs` do próprio IRIS,
+o ícone continua."""
 import importlib
 import os
-import socket
 import sys
 import threading
 from importlib import metadata
 
-from PySide6.QtCore import QObject
+from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from iris.core import armazenamento, avisos
+from iris.core import armazenamento, avisos, canal
 from iris.core.atalho import ATALHO_PADRAO, descrever_atalho
 from iris.core.avisos import registro
 from iris.ui.qt_widgets import aplicar_estilo_global
@@ -33,31 +39,55 @@ from iris.ui.qt_widgets import aplicar_estilo_global
 GRUPO_ENTRY_POINTS = "iris.plugins"
 _PLUGINS_LEGADOS = ["iris_plugin_gaia", "iris_plugin_moirai"]
 
-# Instância única (2026-08-23): reservar uma porta TCP local só pra esta
-# instância - se já estiver ocupada, outro IRIS já está rodando. Importa
-# porque a GAIA também sobe o IRIS sozinha (`integrations/iris_bridge.py::
-# garantir_iris_rodando`); sem a guarda, uma segunda execução duplicava
-# processo, ícone de bandeja e atalho.
-PORTA_INSTANCIA_UNICA = 8767
-_socket_instancia_unica = None
+# Instância única (2026-08-23): a porta do canal de comandos (8767) só aceita
+# um IRIS. Importa porque a GAIA também sobe o IRIS sozinha
+# (`integrations/iris_bridge.py::garantir_iris_rodando`); sem a guarda, uma
+# segunda execução duplicava processo, ícone de bandeja e atalho.
+VARIAVEL_SEM_ICONE = "IRIS_SEM_ICONE_BANDEJA"
+_servidor_canal = None
 
 
 def _garantir_instancia_unica():
-    global _socket_instancia_unica
-    _socket_instancia_unica = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    global _servidor_canal
     try:
-        _socket_instancia_unica.bind(("127.0.0.1", PORTA_INSTANCIA_UNICA))
-    except OSError:
-        registro.info("Já existe um IRIS rodando (porta %s ocupada); encerrando esta instância.", PORTA_INSTANCIA_UNICA)
+        _servidor_canal = canal.reservar_porta()
+    except canal.InstanciaJaRodando:
+        registro.info("Já existe um IRIS rodando (porta %s ocupada); encerrando esta instância.", canal.PORTA)
         sys.exit(1)
 
 
+def sem_icone_na_bandeja(ambiente=None):
+    return (ambiente if ambiente is not None else os.environ).get(VARIAVEL_SEM_ICONE, "").strip() == "1"
+
+
 class IrisApp(QObject):
+    # Comandos do canal e avisos podem nascer em qualquer thread; os sinais
+    # entregam na thread do Qt.
+    comando_recebido = Signal(str)
+    aviso_recebido = Signal(str)
+
     def __init__(self):
         super().__init__()
         self.tray_icon = None
         self.atalho = None
         self._janela_config = None
+        self.comando_recebido.connect(self._executar_comando)
+
+    def _executar_comando(self, comando):
+        if comando == "abrir_menu":
+            self.abrir_menu_radial()
+        elif comando == "configuracoes":
+            self.abrir_configuracoes()
+
+    def abrir_menu_radial(self):
+        """Abre o menu sem fechar se ele já estiver aberto (o atalho alterna;
+        um comando vindo da GAIA não deve fechar o que o usuário vê)."""
+        from iris.ui import menu_radial_qt
+        if menu_radial_qt._popup_atual is not None:
+            from iris.ui.primeiro_plano import trazer_para_frente
+            trazer_para_frente(menu_radial_qt._popup_atual)
+            return
+        self.alternar_menu_radial()
 
     def alternar_menu_radial(self):
         from iris.ui.menu_radial_qt import mostrar_menu_radial_qt
@@ -84,10 +114,10 @@ class IrisApp(QObject):
         o popup radial) sem receber clique nenhum enquanto a janela estivesse
         aberta. Guarda a referência em `self` pra não ser coletada pelo GC do
         Python assim que a função retorna."""
+        from iris.ui.primeiro_plano import trazer_para_frente
         if self._janela_config is not None:
             self._janela_config.show()
-            self._janela_config.raise_()
-            self._janela_config.activateWindow()
+            trazer_para_frente(self._janela_config)
             return
         from iris.ui.settings_window import JanelaConfiguracoes
         self._janela_config = JanelaConfiguracoes(
@@ -96,9 +126,22 @@ class IrisApp(QObject):
         )
         self._janela_config.finished.connect(self._ao_fechar_configuracoes)
         self._janela_config.show()
+        trazer_para_frente(self._janela_config)
 
     def _ao_fechar_configuracoes(self, *_args):
         self._janela_config = None
+
+    def configurar_avisos(self, com_icone):
+        """Com ícone, o aviso sai em balão da bandeja; sem ícone, no aviso
+        flutuante. Em ambos os casos passa pelo sinal (thread do Qt)."""
+        if com_icone:
+            self.aviso_recebido.connect(
+                lambda mensagem: self.tray_icon.showMessage("IRIS", mensagem, QSystemTrayIcon.Information, 6000)
+            )
+        else:
+            from iris.ui.aviso_flutuante import mostrar_aviso
+            self.aviso_recebido.connect(mostrar_aviso)
+        avisos.definir_notificador(self.aviso_recebido.emit)
 
     def montar_bandeja(self, app):
         caminho_icone = os.path.join(armazenamento.RAIZ_PROJETO, "assets", "icones", "menu_radial_botao.png")
@@ -121,9 +164,6 @@ class IrisApp(QObject):
             lambda motivo: self.abrir_configuracoes() if motivo == QSystemTrayIcon.DoubleClick else None
         )
         self.tray_icon.show()
-        avisos.definir_notificador(
-            lambda mensagem: self.tray_icon.showMessage("IRIS", mensagem, QSystemTrayIcon.Information, 6000)
-        )
 
 
 def _carregar_plugins():
@@ -172,7 +212,12 @@ def main():
     aplicar_estilo_global(app)
 
     iris_app = IrisApp()
-    iris_app.montar_bandeja(app)
+    com_icone = not sem_icone_na_bandeja()
+    if com_icone:
+        iris_app.montar_bandeja(app)
+    iris_app.configurar_avisos(com_icone)
+    canal.atender(_servidor_canal, iris_app.comando_recebido.emit)
+    app.aboutToQuit.connect(_servidor_canal.close)
 
     try:
         adicionados = radial_menu.sincronizar_categoria_projetos()
@@ -195,7 +240,8 @@ def main():
     if ok:
         registro.info("IRIS pronto - %s abre o menu radial (modo %s).", iris_app.atalho.atalho_atual, iris_app.atalho.modo)
     else:
-        avisos.avisar_usuario(f"{mensagem} Escolha outro em Configurações > Preferências; o menu continua disponível pelo ícone da bandeja.")
+        onde = "pelo ícone da bandeja" if com_icone else "pela bandeja da GAIA (Sentinelas > IRIS)"
+        avisos.avisar_usuario(f"{mensagem} Escolha outro em Configurações > Preferências; o menu continua disponível {onde}.")
 
     sys.exit(app.exec())
 
